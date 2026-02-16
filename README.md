@@ -543,11 +543,7 @@ Templates use placeholder substitution:
 
 ## License
 
-[Your license here]
-
-## Contributing
-
-[Your contribution guidelines here]
+MIT
 
 ---
 
