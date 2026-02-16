@@ -1,73 +1,39 @@
-# MRM Webpanel Installer
-
-Complete installation package for MRM (Multi-Runtime Manager) Webpanel - a powerful Docker-based hosting control panel with integrated mail and DNS server support.
-
-## Overview
-
-MRM Webpanel is a modern hosting control panel that allows you to deploy and manage web applications across multiple runtimes (Node.js, Python, PHP, WordPress) using Docker containers. Each deployment gets its own isolated environment with automatic Nginx reverse proxy configuration.
-
-### Key Features
-
-- **Multi-Runtime Support**: Deploy Node.js, Python, PHP, and WordPress applications
-- **Docker-Based**: Each site runs in an isolated Docker container
-- **Automatic Nginx Configuration**: Reverse proxy with automatic upstream port assignment
-- **Integrated Mail Server**: Full mail stack with Postfix, Dovecot, and DKIM signing
-- **DNS Management**: Bind9 integration for authoritative DNS hosting
-- **SFTP Access**: Per-domain SFTP accounts for file management
-- **Database Management**: MariaDB database provisioning per site
-- **REST API**: Full-featured API for automation and integrations
-- **Web Dashboard**: Clean, intuitive web interface
-- **Security**: Fail2ban integration, UFW firewall, SSL/TLS support
-
-## System Requirements
-
-### Minimum Requirements
-
-- **OS**: Ubuntu 20.04+ or Debian 11+
-- **RAM**: 2GB minimum (4GB recommended)
-- **Disk**: 20GB minimum (more for production)
-- **CPU**: 1 core minimum (2+ cores recommended)
-- **Network**: Public IP address with root access
-
-### Recommended for Production
-
-- **RAM**: 8GB+
-- **Disk**: 50GB+ SSD storage
-- **CPU**: 4+ cores
-- **Dedicated server or VPS** (not shared hosting)
-
-### Important Notes
-
-- **Fresh Server Recommended**: While the installer can run on existing systems, a clean Ubuntu/Debian installation is strongly recommended
-- **Root Access Required**: The installer must run as root
-- **Domain/Hostname**: Have a FQDN (Fully Qualified Domain Name) ready for your panel
-- **Firewall**: The installer will configure UFW; existing firewall rules may conflict
-
-## Quick Start
-
-### 1. Download and Extract
-
-```bash
-# Extract the installer package
 tar -xzf mrm-webpanel-installer-*.tar.gz
-cd installer/
-```
+# MRM Webpanel — Early Development
 
-### 2. Run Installation
+This repository contains an early-stage installer for the MRM Webpanel. The project is under active development and not yet production-ready.
 
-**Interactive Mode** (recommended for first-time users):
+Status: UNDER DEVELOPMENT — use at your own risk.
+
+## Key Features (planned / in progress)
+
+- Multi-runtime app deployments (Node.js, Python, PHP, WordPress)
+- Docker-based per-site isolation
+- Nginx reverse proxy with automatic upstream configuration
+- MariaDB for panel storage
+- Optional mail (Postfix/Dovecot) and DNS (Bind9) components
+
+Many features are incomplete and APIs/behaviour may change.
+
+## Installation (minimal, development-focused)
+
+Requirements:
+
+- A fresh Ubuntu 20.04+ or Debian 11+ server
+- Root access (installer will modify system packages and services)
+- 2GB+ RAM (4GB+ recommended)
+
+Quick install (interactive):
+
 ```bash
+# extract the package on your server and run the installer
+tar -xzf mrm-webpanel-installer-*.tar.gz
+cd installer
 sudo bash install.sh
 ```
 
-The installer will prompt you for:
-- Server hostname/FQDN
-- MariaDB root password
-- Panel admin password
-- Whether to install mail server components
-- Whether to install DNS server components
+Unattended install (example):
 
-**Unattended Mode** (for automation):
 ```bash
 sudo bash install.sh \
   --hostname panel.example.com \
@@ -76,73 +42,26 @@ sudo bash install.sh \
   --unattended
 ```
 
-### 3. Access Your Panel
-
-After installation completes:
-
-```
-http://[your-server-ip]:5000
-```
-
-**Default Credentials:**
-- Username: `root`
-- Password: [the password you set during installation]
-
-## Installation Options
-
-### Command-Line Arguments
-
-| Option | Description | Example |
-|--------|-------------|---------|
-| `--hostname FQDN` | Set server hostname | `--hostname panel.example.com` |
-| `--db-pass PASSWORD` | MariaDB root password | `--db-pass "securepass123"` |
-| `--admin-pass PASSWORD` | Panel admin password | `--admin-pass "admin123"` |
-| `--skip-mail` | Skip mail server installation | `--skip-mail` |
-| `--skip-dns` | Skip DNS server installation | `--skip-dns` |
-| `--unattended` | Run without prompts | `--unattended` |
-
-### Installation Components
-
-#### Core Components (Always Installed)
-
-- **Nginx** - Reverse proxy and web server
-- **Docker** - Container runtime
-- **MariaDB** - Database server
-- **Python 3** - Panel runtime
-- **Certbot** - SSL/TLS certificate management
-- **UFW** - Firewall
-- **Fail2ban** - Intrusion prevention
-
-#### Optional Components
-
-**Mail Server** (installed by default, use `--skip-mail` to skip):
-- Postfix - SMTP server
-- Dovecot - IMAP/POP3 server
-- OpenDKIM - Email signing/verification
-
-**DNS Server** (installed by default, use `--skip-dns` to skip):
-- Bind9 - Authoritative DNS server
-
-## Post-Installation
-
-### 1. Verify Installation
-
-Run the verification script to check all components:
+Verify basic installation (development check):
 
 ```bash
-cd installer/
+cd installer
 sudo bash verify.sh
 ```
 
-This will check:
-- ✓ All services are running
-- ✓ Database connectivity
-- ✓ Panel API is responding
-- ✓ Directory structure is correct
-- ✓ Templates are installed
-- ✓ Firewall is configured
+Notes & warnings:
 
-### 2. Configure SSL/TLS (Highly Recommended)
+- This software is experimental. Back up any important data before running the installer.
+- The installer will configure system services (Nginx, Docker, MariaDB, UFW, etc.). Existing services may be affected.
+- For production use, wait for a stable release and full documentation.
+
+## Contributing & Feedback
+
+If you'd like to contribute or report issues, open an issue or pull request on GitHub. Expect breaking changes during active development.
+
+---
+
+Updated README for early-development usage and installation instructions.
 
 Secure your panel with Let's Encrypt:
 
