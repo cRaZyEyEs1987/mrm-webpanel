@@ -1,67 +1,30 @@
 tar -xzf mrm-webpanel-installer-*.tar.gz
 # MRM Webpanel — Early Development
 
-This repository contains an early-stage installer for the MRM Webpanel. The project is under active development and not yet production-ready.
+MRM Webpanel is an early-stage control panel for hosting containerized web apps. This project is experimental and not production ready — use at your own risk.
 
-Status: UNDER DEVELOPMENT — use at your own risk.
+Planned features:
+- Multi-runtime deployments (Node.js, Python, PHP, WordPress)
+- Docker per-site isolation with managed upstream ports
+- Nginx reverse proxy with automatic configuration
+- MariaDB-backed panel storage
+- Optional mail (Postfix/Dovecot) and DNS (Bind9)
 
-## Key Features (planned / in progress)
+Minimal install (developer): Ubuntu 20.04+/Debian 11+, root access, 2GB+ RAM.
 
-- Multi-runtime app deployments (Node.js, Python, PHP, WordPress)
-- Docker-based per-site isolation
-- Nginx reverse proxy with automatic upstream configuration
-- MariaDB for panel storage
-- Optional mail (Postfix/Dovecot) and DNS (Bind9) components
-
-Many features are incomplete and APIs/behaviour may change.
-
-## Installation (minimal, development-focused)
-
-Requirements:
-
-- A fresh Ubuntu 20.04+ or Debian 11+ server
-- Root access (installer will modify system packages and services)
-- 2GB+ RAM (4GB+ recommended)
-
-Quick install (interactive):
-
-```bash
-# extract the package on your server and run the installer
+Interactive:
+```
 tar -xzf mrm-webpanel-installer-*.tar.gz
 cd installer
 sudo bash install.sh
 ```
 
-Unattended install (example):
-
-```bash
-sudo bash install.sh \
-  --hostname panel.example.com \
-  --db-pass "your-secure-db-password" \
-  --admin-pass "your-admin-password" \
-  --unattended
+Unattended example:
+```
+sudo bash install.sh --hostname panel.example.com --db-pass "DBPASS" --admin-pass "ADMINPASS" --unattended
 ```
 
-Verify basic installation (development check):
-
-```bash
-cd installer
-sudo bash verify.sh
-```
-
-Notes & warnings:
-
-- This software is experimental. Back up any important data before running the installer.
-- The installer will configure system services (Nginx, Docker, MariaDB, UFW, etc.). Existing services may be affected.
-- For production use, wait for a stable release and full documentation.
-
-## Contributing & Feedback
-
-If you'd like to contribute or report issues, open an issue or pull request on GitHub. Expect breaking changes during active development.
-
----
-
-Updated README for early-development usage and installation instructions.
+License: MIT — see `LICENSE`.
 
 Secure your panel with Let's Encrypt:
 
