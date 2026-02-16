@@ -1,0 +1,2044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - MRM Webpanel</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 250px;
+            height: 100vh;
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        .sidebar h2 {
+            margin-bottom: 30px;
+            font-size: 18px;
+        }
+        .sidebar nav a {
+            display: block;
+            padding: 12px;
+            margin-bottom: 5px;
+            color: #ecf0f1;
+            text-decoration: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .sidebar nav a:hover, .sidebar nav a.active {
+            background: #3498db;
+            color: white;
+        }
+        .main {
+            margin-left: 250px;
+            padding: 20px;
+        }
+        .top-bar {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .top-bar h1 {
+            font-size: 24px;
+        }
+        .logout-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .logout-btn:hover {
+            background: #c0392b;
+        }
+        .content {
+            display: none;
+        }
+        .content.active {
+            display: block;
+        }
+        .card {
+            background: white;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .card h2 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 5px rgba(52, 152, 219, 0.3);
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        button.secondary {
+            background: #95a5a6;
+        }
+        button.secondary:hover {
+            background: #7f8c8d;
+        }
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .table th {
+            background: #ecf0f1;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #bdc3c7;
+        }
+        .table td {
+            padding: 12px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        .table tr:hover {
+            background: #f9f9f9;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .badge.php { background: #9966cc; color: white; }
+        .badge.python { background: #3776ab; color: white; }
+        .badge.node { background: #68a063; color: white; }
+        .badge.active { background: #27ae60; color: white; }
+        .message {
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #f5c6cb;
+        }
+        .message.loading {
+            background: #e7f3ff;
+            color: #004085;
+            border-left: 4px solid #0c5aa0;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .stat-card .number {
+            font-size: 32px;
+            font-weight: bold;
+            color: #3498db;
+        }
+        .stat-card .label {
+            color: #7f8c8d;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .domain-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1.5fr 2fr;
+            gap: 15px;
+            align-items: center;
+            padding: 15px;
+            border: 1px solid #ecf0f1;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            background: white;
+        }
+        .domain-name {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .domain-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+        .status-deployed {
+            color: #27ae60;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .status-deployed::before {
+            content: "✅";
+            font-size: 16px;
+        }
+        .status-notdeployed {
+            color: #e67e22;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .status-notdeployed::before {
+            content: "⏳";
+            font-size: 16px;
+        }
+        .domain-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .btn-small {
+            padding: 8px 12px;
+            font-size: 12px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-deploy {
+            background: #3498db;
+            color: white;
+        }
+        .btn-deploy:hover {
+            background: #2980b9;
+        }
+        .btn-delete {
+            background: #e74c3c;
+            color: white;
+        }
+        .btn-delete:hover {
+            background: #c0392b;
+        }
+        .btn-small:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #7f8c8d;
+        }
+
+        /* Modal Styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            z-index: 1001;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            min-width: 400px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-height: 90vh;
+            overflow-y: auto;
+            z-index: 1002;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 15px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 20px;
+            color: #333;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding-top: 15px;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            display: none;
+        }
+
+        .modal-label {
+            display: block;
+            margin: 15px 0 8px 0;
+            font-weight: 500;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .modal-select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            background-color: white;
+            cursor: pointer;
+            color: #333;
+        }
+
+        .modal-select:hover {
+            border-color: #999;
+        }
+
+        .modal-select:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
+        }
+
+        .btn-modal-cancel {
+            background: #95a5a6;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .btn-modal-cancel:hover {
+            background: #7f8c8d;
+        }
+
+        .btn-modal-save {
+            background: #27ae60;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .btn-modal-save:hover {
+            background: #229954;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>🎛️ MRM Panel</h2>
+        <nav>
+            <a onclick="showSection('dashboard')" class="nav-link active">📊 Dashboard</a>
+            <a onclick="showSection('domains')" class="nav-link">🌐 Domains</a>
+            <a onclick="showSection('mail')" class="nav-link">📧 Mail</a>
+            <a onclick="showSection('databases')" class="nav-link">🗄️ Databases</a>
+            <a onclick="showSection('sites')" class="nav-link">🐳 Sites</a>
+            <hr style="margin: 20px 0; opacity: 0.3;">
+            <a onclick="logout()" class="nav-link">🚪 Logout</a>
+        </nav>
+    </div>
+
+    <div class="main">
+        <div class="top-bar">
+            <h1 id="sectionTitle">Dashboard</h1>
+            <button class="logout-btn" onclick="logout()">Logout</button>
+        </div>
+
+        <div id="message"></div>
+
+        <!-- Dashboard Section -->
+        <div id="dashboard" class="content active">
+            <div class="grid">
+                <div class="stat-card">
+                    <div class="number" id="domainCount">-</div>
+                    <div class="label">Total Domains</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number" id="mailCount">-</div>
+                    <div class="label">Mail Users</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number" id="siteCount">-</div>
+                    <div class="label">Active Sites</div>
+                </div>
+            </div>
+            <div class="card">
+                <h2>Quick Actions</h2>
+                <button onclick="showSection('domains')">📁 Create New Domain</button>
+                <button class="secondary" onclick="showSection('mail')">📧 Add Mail User</button>
+                <button class="secondary" onclick="showSection('sites')">🐳 Deploy Site</button>
+            </div>
+        </div>
+
+        <!-- Domains Section -->
+        <div id="domains" class="content">
+            <div class="card">
+                <h2>Create Domain</h2>
+                <form onsubmit="createDomain(event)">
+                    <div class="form-group">
+                        <label>Domain Name</label>
+                        <input type="text" id="domainName" placeholder="example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Runtime Type</label>
+                        <select id="runtimeType" onchange="updateVersions()" required>
+                            <option value="">Select Runtime Type</option>
+                            <option value="node">Node.js</option>
+                            <option value="php">PHP</option>
+                            <option value="python">Python</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Version</label>
+                        <select id="runtimeVersion" required>
+                            <option value="">Select Version</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="createWordpressGroup" style="display:none;">
+                        <label style="display:block; margin-bottom: 6px;">Options</label>
+                        <label style="display:flex; gap: 10px; align-items:center; cursor:pointer; font-size: 13px; color:#555;">
+                            <input type="checkbox" id="createInstallWordpress" /> Install WordPress (auto-deploy)
+                        </label>
+                    </div>
+                    <button type="submit">Create Domain</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2>Your Domains</h2>
+                <div id="domainsList" class="loading">Loading domains...</div>
+            </div>
+        </div>
+
+        <!-- Mail Section -->
+        <div id="mail" class="content">
+            <div class="card">
+                <h2>Add Mail User</h2>
+                <form onsubmit="createMailUser(event)">
+                    <div class="form-group">
+                        <label>Domain</label>
+                        <select id="mailDomain" required>
+                            <option value="">Select Domain</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" id="mailEmail" placeholder="admin@example.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="mailPassword" placeholder="Secure password" required>
+                    </div>
+                    <button type="submit">Create Mail User</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2>Mail Users</h2>
+                <div id="mailList" class="loading">Loading mail users...</div>
+            </div>
+        </div>
+
+        <!-- Databases Section -->
+        <div id="databases" class="content">
+            <div class="card">
+                <h2>Create Database</h2>
+                <form onsubmit="createDatabase(event)">
+                    <div class="form-group">
+                        <label>Domain</label>
+                        <select id="dbDomain" required>
+                            <option value="">Select Domain</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Database Name</label>
+                        <input type="text" id="dbName" placeholder="myapp_db" required>
+                    </div>
+                    <button type="submit">Create Database</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2>Your Databases</h2>
+                <div id="databasesList" class="loading">Loading databases...</div>
+            </div>
+        </div>
+
+        <!-- Sites Section -->
+        <div id="sites" class="content">
+            <div class="card">
+                <h2>Deploy Site</h2>
+                <form onsubmit="createSite(event)">
+                    <div class="form-group">
+                        <label>Domain</label>
+                        <select id="siteDomain" required>
+                            <option value="">Select Domain</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Site Name</label>
+                        <input type="text" id="siteName" placeholder="main" required>
+                    </div>
+                    <button type="submit">Deploy Site</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2>Your Sites</h2>
+                <div id="sitesList" class="loading">Loading sites...</div>
+            </div>
+        </div>
+
+        <!-- Change Runtime Modal -->
+        <div id="changeRuntimeModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0;">Change Runtime & Version</h2>
+                    <button onclick="closeChangeRuntimeModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">✕</button>
+                </div>
+                <div id="changeRuntimeDomain" style="color: #7f8c8d; font-size: 14px; margin-bottom: 20px;">Domain: <strong id="changeRuntimeDomainName"></strong></div>
+                
+                <div class="form-group">
+                    <label>Runtime Type</label>
+                    <select id="changeRuntimeType" onchange="updateChangeVersions()" required>
+                        <option value="">Select Runtime Type</option>
+                        <option value="node">Node.js</option>
+                        <option value="php">PHP</option>
+                        <option value="python">Python</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Version</label>
+                    <select id="changeRuntimeVersion" required>
+                        <option value="">Select Version</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="changeWordpressGroup" style="display:none;">
+                    <label style="display:block; margin-bottom: 6px;">Options</label>
+                    <label style="display:flex; gap: 10px; align-items:center; cursor:pointer; font-size: 13px; color:#555;">
+                        <input type="checkbox" id="changeInstallWordpress" /> Install WordPress (auto-deploy)
+                    </label>
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button onclick="closeChangeRuntimeModal()" class="secondary" style="padding: 10px 20px;">Cancel</button>
+                    <button onclick="saveRuntimeChange()" style="padding: 10px 20px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer;">Save Changes</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Backdrop -->
+        <div id="changeRuntimeBackdrop" class="modal-backdrop" style="display: none;" onclick="closeChangeRuntimeModal()"></div>
+
+        <!-- Framework Selection Modal -->
+        <div id="frameworkModal" class="modal" style="display: none;">
+            <div class="modal-content" style="max-width: 500px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2>Select Boilerplate</h2>
+                    <button onclick="closeFrameworkModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">✕</button>
+                </div>
+                
+                <div id="frameworkOptions" style="display: grid; gap: 15px;">
+                    <!-- PHP frameworks -->
+                    <div id="phpFrameworks" style="display: none;">
+                        <label style="display: flex; gap: 10px; cursor: pointer; padding: 12px; border: 2px solid #e0e0e0; border-radius: 5px; align-items: center;">
+                            <input type="radio" name="boilerplate" value="blank" checked> <strong>Blank</strong> - Empty PHP project
+                        </label>
+                        <label style="display: flex; gap: 10px; cursor: pointer; padding: 12px; border: 2px solid #e0e0e0; border-radius: 5px; align-items: center;">
+                            <input type="radio" name="boilerplate" value="laravel"> <strong>Laravel</strong> - Full-stack PHP framework
+                        </label>
+                        <label style="display: flex; gap: 10px; cursor: pointer; padding: 12px; border: 2px solid #e0e0e0; border-radius: 5px; align-items: center;">
+                            <input type="radio" name="boilerplate" value="wordpress"> <strong>WordPress</strong> - CMS platform
+                        </label>
+                    </div>
+                    
+                    <!-- Node frameworks -->
+                    <div id="nodeFrameworks" style="display: none;">
+                        <label style="display: flex; gap: 10px; cursor: pointer; padding: 12px; border: 2px solid #e0e0e0; border-radius: 5px; align-items: center;">
+                            <input type="radio" name="boilerplate" value="blank" checked> <strong>Blank</strong> - Express.js REST API
+                        </label>
+                        <label style="display: flex; gap: 10px; cursor: pointer; padding: 12px; border: 2px solid #e0e0e0; border-radius: 5px; align-items: center;">
+                            <input type="radio" name="boilerplate" value="nextjs"> <strong>Next.js</strong> - React full-stack framework
+                        </label>
+                        <label style="display: flex; gap: 10px; cursor: pointer; padding: 12px; border: 2px solid #e0e0e0; border-radius: 5px; align-items: center;">
+                            <input type="radio" name="boilerplate" value="fastify"> <strong>Fastify</strong> - High-performance API framework
+                        </label>
+                    </div>
+                    
+                    <!-- Python frameworks -->
+                    <div id="pythonFrameworks" style="display: none;">
+                        <label style="display: flex; gap: 10px; cursor: pointer; padding: 12px; border: 2px solid #e0e0e0; border-radius: 5px; align-items: center;">
+                            <input type="radio" name="boilerplate" value="blank" checked> <strong>Blank</strong> - Flask REST API
+                        </label>
+                        <label style="display: flex; gap: 10px; cursor: pointer; padding: 12px; border: 2px solid #e0e0e0; border-radius: 5px; align-items: center;">
+                            <input type="radio" name="boilerplate" value="django"> <strong>Django</strong> - Full web framework
+                        </label>
+                        <label style="display: flex; gap: 10px; cursor: pointer; padding: 12px; border: 2px solid #e0e0e0; border-radius: 5px; align-items: center;">
+                            <input type="radio" name="boilerplate" value="fastapi"> <strong>FastAPI</strong> - Modern async API framework
+                        </label>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 30px; text-align: right; gap: 10px; display: flex; justify-content: flex-end;">
+                    <button onclick="closeFrameworkModal()" class="secondary" style="padding: 10px 20px;">Cancel</button>
+                    <button onclick="proceedWithFramework()" style="padding: 10px 20px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer;">Continue</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="frameworkBackdrop" class="modal-backdrop" style="display: none;" onclick="closeFrameworkModal()"></div>
+
+        <!-- Deployment Logs Modal -->
+        <div id="deploymentLogsModal" class="modal" style="display: none;">
+            <div class="modal-content" style="max-width: 800px; max-height: 80vh;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2 style="margin: 0;">Deployment Progress</h2>
+                    <button onclick="closeDeploymentLogsModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">✕</button>
+                </div>
+                
+                <div id="deploymentDomainName" style="color: #7f8c8d; font-size: 14px; margin-bottom: 15px;">
+                    Deploying: <strong id="deploymentDomainNameValue"></strong>
+                </div>
+                
+                <div id="deploymentPhaseStatus" style="font-size: 16px; margin-bottom: 15px; padding: 10px; background: #ecf0f1; border-radius: 5px; font-weight: 500;">
+                    <span id="deploymentPhaseText">Initializing...</span>
+                    <span id="deploymentProgressPercent" style="float: right; color: #7f8c8d;"></span>
+                </div>
+                
+                <div style="background: #2c3e50; border-radius: 5px; padding: 15px; max-height: 400px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 13px; color: #ecf0f1; margin-bottom: 15px;" id="deploymentLogsContainer">
+                    <div id="deploymentLogsContent">
+                        <!-- Logs will be inserted here -->
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button id="deploymentCloseBtn" onclick="closeDeploymentLogsModal()" class="secondary" style="padding: 10px 20px; display: none;">Close</button>
+                    <button id="deploymentViewSiteBtn" onclick="viewDeployedSite()" style="padding: 10px 20px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; display: none;">View Site</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="deploymentLogsBackdrop" class="modal-backdrop" style="display: none;"></div>
+
+        <!-- SFTP Credentials Modal -->
+        <div id="sftpCredentialsModal" class="modal" style="display: none;">
+            <div class="modal-content" style="max-width: 600px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0;">🔑 SFTP Credentials Created</h2>
+                    <button onclick="closeSFTPModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">✕</button>
+                </div>
+                
+                <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 5px; margin-bottom: 20px; color: #856404;">
+                    <strong>⚠️ Important:</strong> Save these credentials now. The password won't be shown again!
+                </div>
+                
+                <div id="sftpDomainName" style="color: #7f8c8d; font-size: 14px; margin-bottom: 20px;">
+                    Domain: <strong id="sftpDomain"></strong>
+                </div>
+                
+                <div style="display: grid; gap: 15px;">
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; color: #7f8c8d; font-size: 13px;">Host</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="sftpHost" readonly style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: 'Courier New', monospace; background: #f8f9fa;">
+                            <button onclick="copyToClipboard('sftpHost')" style="padding: 10px 15px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">📋 Copy</button>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; color: #7f8c8d; font-size: 13px;">Port</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="sftpPort" readonly value="22" style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: 'Courier New', monospace; background: #f8f9fa;">
+                            <button onclick="copyToClipboard('sftpPort')" style="padding: 10px 15px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">📋 Copy</button>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; color: #7f8c8d; font-size: 13px;">Username</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="sftpUsername" readonly style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: 'Courier New', monospace; background: #f8f9fa;">
+                            <button onclick="copyToClipboard('sftpUsername')" style="padding: 10px 15px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">📋 Copy</button>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; color: #7f8c8d; font-size: 13px;">Password</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="sftpPassword" readonly style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: 'Courier New', monospace; background: #f8f9fa;">
+                            <button onclick="copyToClipboard('sftpPassword')" style="padding: 10px 15px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">📋 Copy</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 20px; padding: 15px; background: #f0f7ff; border-radius: 5px; font-size: 13px; color: #555;">
+                    <strong>💡 How to connect:</strong><br>
+                    1. Use FileZilla, WinSCP, or any SFTP client<br>
+                    2. Your files are in the <code style="background: #e0e0e0; padding: 2px 5px; border-radius: 3px;">/data</code> directory<br>
+                    3. After editing files, restart the container to see changes
+                </div>
+                
+                <div style="margin-top: 25px; text-align: right;">
+                    <button onclick="closeSFTPModal()" style="padding: 12px 30px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">Got it!</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="sftpCredentialsBackdrop" class="modal-backdrop" style="display: none;" onclick="closeSFTPModal()"></div>
+
+        <!-- PHP ini Editor Modal -->
+        <div id="phpIniModal" class="modal" style="display: none;">
+            <div class="modal-content" style="max-width: 900px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2 style="margin: 0;">⚙️ Edit php.ini</h2>
+                    <button onclick="closePhpIniModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">✕</button>
+                </div>
+
+                <div id="phpIniDomainName" style="color: #7f8c8d; font-size: 14px; margin-bottom: 12px;">
+                    Domain: <strong id="phpIniDomain"></strong>
+                </div>
+
+                <textarea id="phpIniTextarea" spellcheck="false" style="width: 100%; min-height: 420px; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 13px; background: #f8f9fa;"></textarea>
+
+                <div style="margin-top: 10px; color:#7f8c8d; font-size: 12px;">
+                    Changes apply after restart (the panel will restart automatically if deployed).
+                </div>
+
+                <div style="margin-top: 18px; display: flex; justify-content: flex-end; gap: 10px;">
+                    <button onclick="closePhpIniModal()" class="secondary" style="padding: 10px 20px;">Cancel</button>
+                    <button onclick="savePhpIni()" style="padding: 10px 20px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer;">Save</button>
+                </div>
+            </div>
+        </div>
+        <div id="phpIniBackdrop" class="modal-backdrop" style="display: none;" onclick="closePhpIniModal()"></div>
+    </div>
+
+    <script>
+        const TOKEN = localStorage.getItem('token');
+
+        if (!TOKEN) {
+            window.location.href = '/';
+        }
+
+        // Ensure dashboard loads once DOM is ready (fixes frozen main menu)
+        window.addEventListener('DOMContentLoaded', () => {
+            try {
+                // Load available templates from server
+                loadAvailableTemplates();
+                // Show dashboard section
+                showSection('dashboard');
+            } catch (e) {
+                // safe no-op
+            }
+        });
+
+        function showMessage(msg, type = 'success', isPersistent = false) {
+            const el = document.getElementById('message');
+            el.className = `message ${type}`;
+            el.textContent = msg;
+            
+            // Only auto-clear if not persistent
+            if (!isPersistent) {
+                setTimeout(() => {
+                    if (el.className.includes(type)) {
+                        el.textContent = '';
+                    }
+                }, 5000);
+            }
+        }
+
+        function showSFTPCredentials(domain, username, password) {
+            // Use the same modal as when creating SFTP user
+            showSFTPCredentialsModal(domain, username, password);
+        }
+
+        async function createSFTP(domainId, domainName) {
+            if (!confirm(`Create SFTP user for ${domainName}?`)) return;
+            
+            showMessage('⏳ Creating SFTP user...', 'loading', true);
+            
+            const res = await api('POST', `/domains/${domainId}/sftp`, {});
+            
+            if (res.ok) {
+                showMessage('✅ SFTP user created successfully!');
+                
+                // Show modal with credentials
+                showSFTPCredentialsModal(domainName, res.sftp_username, res.sftp_password);
+                
+                // Reload the domains list to show updated SFTP status
+                setTimeout(loadDomains, 500);
+            } else {
+                showMessage(`❌ Error: ${res.error}`, 'error');
+            }
+        }
+
+        function showSFTPCredentialsModal(domain, username, password) {
+            document.getElementById('sftpDomain').textContent = domain;
+            document.getElementById('sftpHost').value = window.location.hostname;
+            document.getElementById('sftpUsername').value = username;
+            document.getElementById('sftpPassword').value = password;
+            
+            document.getElementById('sftpCredentialsModal').style.display = 'block';
+            document.getElementById('sftpCredentialsBackdrop').style.display = 'block';
+        }
+
+        function closeSFTPModal() {
+            document.getElementById('sftpCredentialsModal').style.display = 'none';
+            document.getElementById('sftpCredentialsBackdrop').style.display = 'none';
+        }
+
+        function copyToClipboard(inputId) {
+            const input = document.getElementById(inputId);
+            input.select();
+            input.setSelectionRange(0, 99999); // For mobile
+            
+            // Check if Clipboard API is available
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(input.value).then(() => {
+                    // Visual feedback
+                    const button = event.target;
+                    const originalText = button.textContent;
+                    button.textContent = '✅ Copied!';
+                    button.style.background = '#27ae60';
+                    
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.style.background = '#3498db';
+                    }, 2000);
+                }).catch(err => {
+                    // Fallback
+                    document.execCommand('copy');
+                    showMessage('📋 Copied to clipboard!', 'success');
+                });
+            } else {
+                // Fallback for older browsers or non-HTTPS
+                try {
+                    document.execCommand('copy');
+                    const button = event.target;
+                    const originalText = button.textContent;
+                    button.textContent = '✅ Copied!';
+                    button.style.background = '#27ae60';
+                    
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                        button.style.background = '#3498db';
+                    }, 2000);
+                } catch (err) {
+                    showMessage('❌ Copy failed. Please select and copy manually.', 'error');
+                }
+            }
+        }
+
+        async function deleteSFTP(domainId, domainName) {
+            if (!confirm(`Delete SFTP user for ${domainName}?\n\nThis will remove SSH access for this domain.`)) return;
+            
+            showMessage('⏳ Deleting SFTP user...', 'loading', true);
+            
+            const res = await api('DELETE', `/domains/${domainId}/sftp`, {});
+            
+            if (res.ok) {
+                showMessage(`✅ SFTP user deleted for ${domainName}`);
+                
+                // Reload the domains list to show updated SFTP status
+                setTimeout(loadDomains, 500);
+            } else {
+                showMessage(`❌ Error: ${res.error}`, 'error');
+            }
+        }
+
+        function showSection(section, ev) {
+            // ev may be undefined when called from inline onclick without an event.
+            const target = (ev && (ev.currentTarget || ev.target)) || document.querySelector(`.nav-link[onclick*="${section}"]`) || document.querySelector('.nav-link');
+
+            document.querySelectorAll('.content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+            const sectionEl = document.getElementById(section);
+            if (sectionEl) sectionEl.classList.add('active');
+            if (target) target.classList.add('active');
+
+            const titles = {
+                dashboard: '📊 Dashboard',
+                domains: '🌐 Domains',
+                mail: '📧 Mail Users',
+                databases: '🗄️ Databases',
+                sites: '🐳 Sites'
+            };
+            document.getElementById('sectionTitle').textContent = titles[section] || section;
+
+            if (section === 'dashboard') loadDashboard();
+            else if (section === 'domains') loadDomains();
+            else if (section === 'mail') loadMailUsers();
+            else if (section === 'databases') loadDatabasesData();
+            else if (section === 'sites') loadSites();
+        }
+
+        function api(method, endpoint, data = null) {
+            const opts = {
+                method,
+                headers: {
+                    'Authorization': `Bearer ${TOKEN}`,
+                    'Content-Type': 'application/json'
+                }
+            };
+            if (data) opts.body = JSON.stringify(data);
+            
+            return fetch(endpoint, opts)
+                .then(r => {
+                    // Try to parse response as JSON
+                    const contentType = r.headers.get('content-type');
+                    
+                    if (!r.ok) {
+                        // If response is not OK, extract error
+                        if (contentType && contentType.includes('application/json')) {
+                            return r.json().then(json => {
+                                throw new Error(json.error || `HTTP ${r.status}`);
+                            });
+                        } else {
+                            // Non-JSON error response
+                            return r.text().then(text => {
+                                throw new Error(`HTTP ${r.status}`);
+                            });
+                        }
+                    }
+                    
+                    // Response is OK, parse JSON
+                    if (contentType && contentType.includes('application/json')) {
+                        return r.json().then(json => {
+                            // Ensure ok flag is set
+                            return { ok: true, ...json };
+                        });
+                    } else {
+                        throw new Error('Response is not JSON');
+                    }
+                })
+                .catch(error => {
+                    // Return error object with ok=false for error handling
+                    return {
+                        ok: false,
+                        error: error.message || 'Unknown error',
+                        data: null
+                    };
+                });
+        }
+
+        async function loadDashboard() {
+            const domains = await api('GET', '/domains');
+            let mailCount = 0, siteCount = 0;
+
+            if (domains.ok && domains.data && domains.data.length > 0) {
+                for (const d of domains.data) {
+                    const mail = await api('GET', `/domains/${d.id}/mail/users`);
+                    const sites = await api('GET', `/domains/${d.id}/sites`);
+                    mailCount += (mail.ok && mail.data?.length) ? mail.data.length : 0;
+                    siteCount += (sites.ok && sites.data?.length) ? sites.data.length : 0;
+                }
+            }
+
+            document.getElementById('domainCount').textContent = (domains.ok && domains.data?.length) ? domains.data.length : 0;
+            document.getElementById('mailCount').textContent = mailCount;
+            document.getElementById('siteCount').textContent = siteCount;
+        }
+
+        async function loadDomains() {
+            const res = await api('GET', '/domains');
+            let domains = [];
+            let html = '';
+            
+            if (!res.ok) {
+                html = `<p style="color: #e74c3c; padding: 20px; text-align: center;">Error loading domains: ${res.error}</p>`;
+                document.getElementById('domainsList').innerHTML = html;
+                return;
+            }
+            
+            domains = res.data || [];
+            
+            if (domains.length === 0) {
+                html = '<p style="color: #7f8c8d; padding: 20px; text-align: center;">No domains yet. Create your first one!</p>';
+            } else {
+                for (const d of domains) {
+                    // Check if domain has any sites deployed
+                    const sitesRes = await api('GET', `/domains/${d.id}/sites`);
+                    const isDeployed = sitesRes.ok && sitesRes.data && sitesRes.data.length > 0;
+                    const deployedSite = isDeployed ? sitesRes.data[0] : null;
+                    
+                    // Runtime badge color
+                    const runtimeClass = d.runtime.toLowerCase();
+                    const statusClass = isDeployed ? 'status-deployed' : 'status-notdeployed';
+                    const statusText = isDeployed ? 'Deployed' : 'Not Deployed';
+                    
+                    // Format version display
+                    const versionText = d.version ? d.version.replace(/([a-z])(\d+)/i, '$1 $2').toUpperCase() : 'Default';
+                    
+                    html += `
+                        <div class="domain-row" data-domain-id="${d.id}">
+                            <div>
+                                <div class="domain-name">${d.domain}</div>
+                                <div style="color: #7f8c8d; font-size: 13px; margin-top: 5px;">
+                                    <span class="badge ${runtimeClass}">${d.runtime.toUpperCase()}</span>
+                                    <span style="margin-left: 8px; font-size: 12px; color: #95a5a6;">${versionText}</span>
+                                    ${d.sftp_username ? `<span style="margin-left: 8px; font-size: 12px; color: #27ae60; cursor: pointer;" onclick="showSFTPCredentials('${d.domain}', '${d.sftp_username}', '${d.sftp_password || 'N/A'}')">🔑 SFTP</span>` : ''}
+                                </div>
+                            </div>
+                            <div class="domain-status">
+                                <span class="${statusClass}">${statusText}</span>
+                            </div>
+                            <div style="font-size: 13px; color: #7f8c8d;">
+                                ${new Date(d.created_at).toLocaleDateString()}
+                            </div>
+                            <div class="domain-actions">
+                                ${!isDeployed ? `
+                                    <button class="btn-small btn-deploy" onclick="deployDomain(${d.id}, '${d.domain}', '${d.runtime}')">🚀 Deploy</button>
+                                    <button class="btn-small" style="background: #f39c12;" onclick="openChangeRuntimeModal(${d.id}, '${d.domain}', '${d.runtime}', '${d.version || 'node18'}')">⚙️ Change</button>
+                                ` : ''}
+                                ${isDeployed ? `
+                                    <button class="btn-small" style="background: #3498db;" onclick="restartSite(${deployedSite.id}, ${d.id}, '${d.domain}')">🔄 Restart</button>
+                                    <button class="btn-small btn-delete" onclick="deleteSite(${deployedSite.id}, ${d.id}, '${d.domain}')">🗑️ Delete</button>
+                                    <button class="btn-small btn-small" style="background: #95a5a6;" onclick="window.open('http://' + '${d.domain}', '_blank')">🔗 Visit</button>
+                                ` : ''}
+                                <button class="btn-small" style="background: #7f8c8d;" onclick="toggleDomainSettings(${d.id}, '${d.domain}', '${d.runtime}')">⚙️ Settings</button>
+                                ${d.sftp_username ? `
+                                    <button class="btn-small" style="background: #e74c3c;" onclick="deleteSFTP(${d.id}, '${d.domain}')">🗑️ SFTP</button>
+                                ` : `
+                                    <button class="btn-small" style="background: #27ae60;" onclick="createSFTP(${d.id}, '${d.domain}')">🔑 SFTP</button>
+                                `}
+                            </div>
+                        </div>
+                        <div id="domain-settings-${d.id}" class="domain-settings" style="display:none; padding: 12px 16px; background: #f8f9fa; border: 1px solid #ecf0f1; border-top: none; border-radius: 0 0 10px 10px; margin-bottom: 10px;">
+                            <div style="color:#7f8c8d; font-size: 13px;">Loading settings...</div>
+                        </div>
+                    `;
+                }
+            }
+            document.getElementById('domainsList').innerHTML = html;
+
+            const selects = ['mailDomain', 'dbDomain'];
+            selects.forEach(id => {
+                const el = document.getElementById(id);
+                el.innerHTML = '<option value="">Select Domain</option>';
+                domains.forEach(d => {
+                    el.innerHTML += `<option value="${d.id}">${d.domain}</option>`;
+                });
+            });
+        }
+
+        // Runtime versions mapping - loaded dynamically from server
+        let runtimeVersions = {
+            node: [],
+            python: [],
+            php: []
+        };
+
+        // Load available templates on page load
+        async function loadAvailableTemplates() {
+            try {
+                const res = await api('GET', '/templates/available');
+                if (res.ok && res.templates) {
+                    runtimeVersions = res.templates;
+                    console.log('Loaded available templates:', runtimeVersions);
+                    showMessage('✅ Available templates loaded', 'success');
+                }
+            } catch (e) {
+                console.error('Failed to load templates:', e);
+                showMessage('⚠️ Failed to load available templates', 'error');
+                // Fallback to at least node18, python311, php82 which we know exist
+                runtimeVersions = {
+                    node: [{ value: 'node18', label: 'Node.js 18 (LTS)' }],
+                    python: [{ value: 'python311', label: 'Python 3.11' }],
+                    php: [{ value: 'php82', label: 'PHP 8.2' }]
+                };
+            }
+        }
+
+        function updateVersions() {
+            const runtimeType = document.getElementById('runtimeType').value;
+            const versionSelect = document.getElementById('runtimeVersion');
+
+            // PHP-only WordPress checkbox
+            const wpGroup = document.getElementById('createWordpressGroup');
+            const wpCheckbox = document.getElementById('createInstallWordpress');
+            if (wpGroup && wpCheckbox) {
+                const isPhp = (runtimeType || '').toLowerCase() === 'php';
+                wpGroup.style.display = isPhp ? 'block' : 'none';
+                if (!isPhp) wpCheckbox.checked = false;
+            }
+            
+            // Clear existing options
+            versionSelect.innerHTML = '<option value="">Select Version</option>';
+            
+            if (!runtimeType) {
+                versionSelect.disabled = true;
+                return;
+            }
+            
+            versionSelect.disabled = false;
+            
+            // Add versions for selected runtime
+            if (runtimeVersions[runtimeType] && runtimeVersions[runtimeType].length > 0) {
+                runtimeVersions[runtimeType].forEach(version => {
+                    const option = document.createElement('option');
+                    option.value = version.value;
+                    option.textContent = version.label;
+                    versionSelect.appendChild(option);
+                });
+            } else {
+                versionSelect.innerHTML = '<option value="">No templates available</option>';
+                versionSelect.disabled = true;
+            }
+        }
+
+        async function createDomain(e) {
+            e.preventDefault();
+            const domain = document.getElementById('domainName').value;
+            const runtimeType = document.getElementById('runtimeType').value;
+            const runtimeVersion = document.getElementById('runtimeVersion').value;
+            const installWp = (runtimeType || '').toLowerCase() === 'php' && !!document.getElementById('createInstallWordpress')?.checked;
+            
+            // Use runtime type for deployment (node, php, python)
+            const res = await api('POST', '/domains', {
+                domain, 
+                runtime: runtimeType,
+                version: runtimeVersion
+            });
+            if (res.ok) {
+                let message = `✅ Domain ${domain} created! Ready to deploy with ${runtimeVersion}`;
+                
+                // Show SFTP credentials if available
+                if (res.sftp_username && res.sftp_password) {
+                    message += `\n\n🔑 SFTP Access:\n`;
+                    message += `Username: ${res.sftp_username}\n`;
+                    message += `Password: ${res.sftp_password}\n`;
+                    message += `Host: ${window.location.hostname}\n`;
+                    message += `Port: 22`;
+                }
+                
+                showMessage(message);
+
+                // Optional: auto-deploy WordPress for PHP
+                if (installWp) {
+                    showMessage(`⏳ Deploying WordPress for ${domain}...`, 'loading', true);
+                    const deployRes = await api('POST', `/domains/${res.domain_id}/sites`, {
+                        name: 'main',
+                        runtime: runtimeType,
+                        boilerplate: 'wordpress'
+                    });
+                    if (deployRes.ok) {
+                        showMessage(`✅ WordPress deployed for ${domain}!`, 'success', false);
+                    } else {
+                        showMessage(`⚠️ Domain created but WordPress deploy failed: ${deployRes.error || 'Unknown error'}`, 'warning', false);
+                    }
+                }
+
+                document.getElementById('domainName').value = '';
+                document.getElementById('runtimeType').value = '';
+                document.getElementById('runtimeVersion').value = '';
+                const wpCheckbox = document.getElementById('createInstallWordpress');
+                if (wpCheckbox) wpCheckbox.checked = false;
+                updateVersions();
+                setTimeout(loadDomains, 800);
+            } else {
+                showMessage(`❌ Error: ${res.error}`, 'error');
+            }
+        }
+
+        async function deployDomain(domainId, domainName, runtime, ev) {
+            // Skip framework modal for now - just deploy with blank template
+            const boilerplate = 'blank';
+            
+            // Resolve the button that triggered the action; fallback to locating by data-domain-id
+            let button = null;
+            try {
+                if (ev && (ev.currentTarget || ev.target)) {
+                    const tgt = ev.currentTarget || ev.target;
+                    button = (tgt.tagName === 'BUTTON') ? tgt : (tgt.closest ? tgt.closest('button') : null);
+                }
+            } catch (e) {
+                button = null;
+            }
+
+            if (!button && domainId !== undefined && domainId !== null) {
+                const row = document.querySelector(`.domain-row[data-domain-id="${domainId}"]`);
+                if (row) button = row.querySelector('.btn-deploy');
+            }
+
+            // Safely handle missing button
+            const originalText = (button && typeof button.textContent === 'string') ? button.textContent : null;
+            if (button) {
+                try { button.disabled = true; } catch (e) {}
+                try { button.textContent = '⏳ Deploying...'; } catch (e) {}
+            }
+
+            try {
+                const res = await api('POST', `/domains/${domainId}/sites`, { name: 'main', runtime, boilerplate });
+                if (!res.ok) throw new Error(res.error || 'Deployment request failed');
+
+                // Get the site ID from the response
+                const siteId = res.site_id;
+                
+                // Open deployment logs modal
+                openDeploymentLogsModal(domainId, siteId, domainName);
+                
+                // Re-enable button
+                if (button) {
+                    try { button.disabled = false; } catch (e) {}
+                    try { if (originalText !== null) button.textContent = originalText; } catch (e) {}
+                }
+            } catch (err) {
+                showMessage(`❌ Error: ${err.message || err}`, 'error', false);
+                if (button) {
+                    try { button.disabled = false; } catch (e) {}
+                    try { if (originalText !== null) button.textContent = originalText; } catch (e) {}
+                }
+            }
+        }
+
+        // Deployment logs modal functions
+        let deploymentPollInterval = null;
+        let currentDeploymentDomainId = null;
+        let currentDeploymentSiteId = null;
+        let currentDeploymentDomainName = null;
+
+        function openDeploymentLogsModal(domainId, siteId, domainName) {
+            currentDeploymentDomainId = domainId;
+            currentDeploymentSiteId = siteId;
+            currentDeploymentDomainName = domainName;
+            
+            const modal = document.getElementById('deploymentLogsModal');
+            const backdrop = document.getElementById('deploymentLogsBackdrop');
+            const domainNameValue = document.getElementById('deploymentDomainNameValue');
+            const logsContent = document.getElementById('deploymentLogsContent');
+            const closeBtn = document.getElementById('deploymentCloseBtn');
+            const viewSiteBtn = document.getElementById('deploymentViewSiteBtn');
+            
+            // Set domain name
+            domainNameValue.textContent = domainName;
+            
+            // Clear logs
+            logsContent.innerHTML = '<div style="color: #95a5a6;">Initializing deployment...</div>';
+            
+            // Hide buttons
+            closeBtn.style.display = 'none';
+            viewSiteBtn.style.display = 'none';
+            
+            // Show modal
+            modal.style.display = 'block';
+            backdrop.style.display = 'block';
+            
+            // Start polling for logs
+            pollDeploymentLogs();
+            deploymentPollInterval = setInterval(pollDeploymentLogs, 1000);
+        }
+
+        function closeDeploymentLogsModal() {
+            const modal = document.getElementById('deploymentLogsModal');
+            const backdrop = document.getElementById('deploymentLogsBackdrop');
+            
+            modal.style.display = 'none';
+            backdrop.style.display = 'none';
+            
+            // Stop polling
+            if (deploymentPollInterval) {
+                clearInterval(deploymentPollInterval);
+                deploymentPollInterval = null;
+            }
+            
+            // Reload domains to show updated status
+            setTimeout(loadDomains, 500);
+        }
+
+        async function pollDeploymentLogs() {
+            if (!currentDeploymentDomainId || !currentDeploymentSiteId) return;
+            
+            try {
+                const res = await api('GET', `/domains/${currentDeploymentDomainId}/sites/${currentDeploymentSiteId}/deployment-logs`);
+                if (!res.ok) return;
+                
+                const phaseText = document.getElementById('deploymentPhaseText');
+                const progressPercent = document.getElementById('deploymentProgressPercent');
+                const logsContent = document.getElementById('deploymentLogsContent');
+                const logsContainer = document.getElementById('deploymentLogsContainer');
+                const closeBtn = document.getElementById('deploymentCloseBtn');
+                const viewSiteBtn = document.getElementById('deploymentViewSiteBtn');
+                
+                // Update phase and progress
+                const phaseNames = {
+                    'initializing': 'Initializing deployment...',
+                    'creating_directories': 'Creating directories...',
+                    'creating_boilerplate': 'Creating application code...',
+                    'generating_compose': 'Generating Docker configuration...',
+                    'pulling_image': 'Downloading Docker image...',
+                    'starting_container': 'Starting container...',
+                    'container_started': 'Container started',
+                    'installing_dependencies': 'Installing dependencies...',
+                    'checking_health': 'Checking application health...',
+                    'healthy': 'Application is healthy',
+                    'configuring_nginx': 'Configuring reverse proxy...',
+                    'completed': '✓ Deployment completed successfully!',
+                    'failed': '✗ Deployment failed'
+                };
+                
+                phaseText.textContent = phaseNames[res.phase] || res.phase;
+                progressPercent.textContent = res.progress + '%';
+                
+                // Update logs
+                if (res.logs && res.logs.length > 0) {
+                    logsContent.innerHTML = res.logs.map(log => {
+                        const escaped = log.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                        let color = '#ecf0f1';
+                        if (escaped.includes('ERROR')) color = '#e74c3c';
+                        else if (escaped.includes('✓')) color = '#2ecc71';
+                        else if (escaped.includes('Pulling') || escaped.includes('Downloading')) color = '#3498db';
+                        return `<div style="color: ${color};">${escaped}</div>`;
+                    }).join('');
+                    
+                    // Auto-scroll to bottom
+                    logsContainer.scrollTop = logsContainer.scrollHeight;
+                }
+                
+                // If deployment completed or failed, show buttons and stop polling
+                if (res.completed) {
+                    if (deploymentPollInterval) {
+                        clearInterval(deploymentPollInterval);
+                        deploymentPollInterval = null;
+                    }
+                    
+                    closeBtn.style.display = 'inline-block';
+                    
+                    if (res.phase === 'completed') {
+                        viewSiteBtn.style.display = 'inline-block';
+                        showMessage(`✅ Successfully deployed ${currentDeploymentDomainName}!`, 'success', false);
+                    } else if (res.phase === 'failed') {
+                        showMessage(`❌ Deployment of ${currentDeploymentDomainName} failed. Check logs for details.`, 'error', false);
+                    }
+                }
+                
+            } catch (err) {
+                console.error('Failed to poll deployment logs:', err);
+            }
+        }
+
+        function viewDeployedSite() {
+            if (currentDeploymentDomainName) {
+                window.open(`http://${currentDeploymentDomainName}`, '_blank');
+            }
+            closeDeploymentLogsModal();
+        }
+
+        function openChangeRuntimeModal(domainId, domainName, currentRuntime, currentVersion) {
+            // Store domain info for later use
+            window.currentChangeDomainId = domainId;
+            window.currentChangeDomainName = domainName;
+            
+            // Get modal elements
+            const modal = document.getElementById('changeRuntimeModal');
+            const backdrop = document.getElementById('changeRuntimeBackdrop');
+            const runtimeSelect = document.getElementById('changeRuntimeType');
+            const versionSelect = document.getElementById('changeRuntimeVersion');
+
+            // Reset PHP WordPress option on open
+            try {
+                const wpGroup = document.getElementById('changeWordpressGroup');
+                const wpCheckbox = document.getElementById('changeInstallWordpress');
+                if (wpGroup && wpCheckbox) {
+                    const isPhp = (currentRuntime || '').toLowerCase() === 'php';
+                    wpGroup.style.display = isPhp ? 'block' : 'none';
+                    wpCheckbox.checked = false;
+                }
+            } catch (e) {}
+            const domainNameDisplay = modal.querySelector('.modal-body')?.querySelector('.domain-name-display') || 
+                                    document.createElement('div');
+            
+            // Set domain name in modal header/body
+            const bodyDiv = modal.querySelector('.modal-body');
+            if (bodyDiv) {
+                const nameSpan = bodyDiv.querySelector('span');
+                if (nameSpan) {
+                    nameSpan.textContent = domainName;
+                }
+            }
+            
+            // Set current runtime
+            runtimeSelect.value = currentRuntime || '';
+            
+            // Populate and set version
+            updateChangeVersions();
+            setTimeout(() => {
+                versionSelect.value = currentVersion || 'node18';
+            }, 50);
+            
+            // Show modal and backdrop
+            modal.style.display = 'flex';
+            backdrop.style.display = 'block';
+        }
+
+        function closeChangeRuntimeModal() {
+            const modal = document.getElementById('changeRuntimeModal');
+            const backdrop = document.getElementById('changeRuntimeBackdrop');
+            const runtimeSelect = document.getElementById('changeRuntimeType');
+            const versionSelect = document.getElementById('changeRuntimeVersion');
+            
+            // Hide modal and backdrop
+            modal.style.display = 'none';
+            backdrop.style.display = 'none';
+            
+            // Clear form fields
+            runtimeSelect.value = '';
+            versionSelect.value = '';
+            versionSelect.innerHTML = '<option value="">Select Version</option>';
+            
+            // Clear stored domain info
+            window.currentChangeDomainId = null;
+            window.currentChangeDomainName = null;
+        }
+
+        function updateChangeVersions() {
+            const runtimeType = document.getElementById('changeRuntimeType').value;
+            const versionSelect = document.getElementById('changeRuntimeVersion');
+
+            // PHP-only WordPress checkbox
+            const wpGroup = document.getElementById('changeWordpressGroup');
+            const wpCheckbox = document.getElementById('changeInstallWordpress');
+            if (wpGroup && wpCheckbox) {
+                const isPhp = (runtimeType || '').toLowerCase() === 'php';
+                wpGroup.style.display = isPhp ? 'block' : 'none';
+                if (!isPhp) wpCheckbox.checked = false;
+            }
+            
+            versionSelect.innerHTML = '<option value="">Select Version</option>';
+            
+            if (!runtimeType) {
+                versionSelect.disabled = true;
+                return;
+            }
+            
+            versionSelect.disabled = false;
+            
+            // Use the same runtimeVersions object that's already defined
+            if (runtimeVersions[runtimeType] && runtimeVersions[runtimeType].length > 0) {
+                runtimeVersions[runtimeType].forEach(version => {
+                    const option = document.createElement('option');
+                    option.value = version.value;
+                    option.textContent = version.label;
+                    versionSelect.appendChild(option);
+                });
+            } else {
+                versionSelect.innerHTML = '<option value="">No templates available</option>';
+                versionSelect.disabled = true;
+            }
+        }
+
+        async function saveRuntimeChange() {
+            const domainId = window.currentChangeDomainId;
+            const domainName = window.currentChangeDomainName;
+            const newRuntime = document.getElementById('changeRuntimeType').value;
+            const newVersion = document.getElementById('changeRuntimeVersion').value;
+            const installWp = (newRuntime || '').toLowerCase() === 'php' && !!document.getElementById('changeInstallWordpress')?.checked;
+            
+            // Validation
+            if (!newRuntime || !newVersion) {
+                showMessage('❌ Please select both runtime and version', 'error');
+                return;
+            }
+            
+            // Confirmation
+            if (!confirm(`Are you sure you want to change the runtime for ${domainName}? The domain will be recreated with the new runtime.`)) {
+                return;
+            }
+            
+            closeChangeRuntimeModal();
+            showMessage(`⏳ Deleting existing domain ${domainName}...`, 'loading', true);
+            
+            try {
+                // Step 1: Delete the existing domain
+                const deleteRes = await api('DELETE', `/domains/${domainId}`, {});
+                
+                if (!deleteRes.ok) {
+                    showMessage(`❌ Failed to delete domain: ${deleteRes.error || 'Unknown error'}`, 'error');
+                    setTimeout(loadDomains, 1500);
+                    return;
+                }
+                
+                // Wait for cleanup
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                showMessage(`⏳ Recreating ${domainName} with ${newVersion}...`, 'loading', true);
+                
+                // Step 2: Recreate domain with new runtime and version
+                const createRes = await api('POST', '/domains', {
+                    domain: domainName,
+                    runtime: newRuntime,
+                    version: newVersion
+                });
+                
+                if (createRes.ok) {
+                    // Auto-deploy the site (WordPress for PHP when selected)
+                    const boilerplate = installWp ? 'wordpress' : 'blank';
+                    const deployRes = await api('POST', `/domains/${createRes.domain_id}/sites`, {
+                        name: 'main',
+                        runtime: newRuntime,
+                        boilerplate
+                    });
+                    
+                    if (deployRes.ok) {
+                        // Open deployment logs modal to show real-time progress
+                        const siteId = deployRes.site_id;
+                        openDeploymentLogsModal(createRes.domain_id, siteId, domainName);
+                    } else {
+                        showMessage(`❌ Deployment failed: ${deployRes.error || 'Unknown error'}`, 'error');
+                        setTimeout(loadDomains, 2000);
+                    }
+                } else {
+                    showMessage(`❌ Failed to recreate domain: ${createRes.error || 'Unknown error'}`, 'error');
+                    setTimeout(loadDomains, 2000);
+                }
+            } catch (e) {
+                showMessage(`❌ Error: ${e.message}`, 'error');
+                setTimeout(loadDomains, 2000);
+            }
+        }
+
+        async function deleteSite(siteId, domainId, domainName, ev) {
+            if (!confirm(`Are you sure you want to delete the deployment for ${domainName}? This will remove the Docker container and cleanup.`)) {
+                return;
+            }
+
+            // Disable all action buttons for this domain row
+            const row = (ev && (ev.currentTarget || ev.target) && (ev.currentTarget || ev.target).closest('.domain-row')) || null;
+            const buttons = row ? row.querySelectorAll('button') : [];
+            buttons.forEach(btn => btn.disabled = true);
+
+            showMessage(`⏳ Deleting deployment for ${domainName}... This may take a moment.`, 'loading', true);
+
+            const res = await api('DELETE', `/domains/${domainId}/sites/${siteId}`);
+            if (res.ok) {
+                showMessage(`✅ Successfully deleted deployment for ${domainName}`, 'success', false);
+                setTimeout(loadDomains, 1500);
+            } else {
+                showMessage(`❌ Error: ${res.error}`, 'error', false);
+                buttons.forEach(btn => btn.disabled = false);
+            }
+        }
+
+        async function restartSite(siteId, domainId, domainName, ev) {
+            if (!confirm(`Restart ${domainName} now?`)) {
+                return;
+            }
+
+            // Disable all action buttons for this domain row
+            const row = (ev && (ev.currentTarget || ev.target) && (ev.currentTarget || ev.target).closest('.domain-row')) || null;
+            const buttons = row ? row.querySelectorAll('button') : [];
+            buttons.forEach(btn => btn.disabled = true);
+
+            showMessage(`⏳ Restarting ${domainName}...`, 'loading', true);
+
+            try {
+                const res = await api('POST', `/domains/${domainId}/sites/${siteId}/restart`, {});
+                if (res.ok) {
+                    showMessage(`✅ Restarted ${domainName}`, 'success', false);
+                    setTimeout(loadDomains, 1500);
+                } else {
+                    showMessage(`❌ Error: ${res.error || 'Failed to restart'}`, 'error', false);
+                    buttons.forEach(btn => btn.disabled = false);
+                }
+            } catch (e) {
+                showMessage(`❌ Error: ${e.message}`, 'error', false);
+                buttons.forEach(btn => btn.disabled = false);
+            }
+        }
+
+        function _settingsPanelEl(domainId) {
+            return document.getElementById(`domain-settings-${domainId}`);
+        }
+
+        function _escapeHtml(s) {
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        async function toggleDomainSettings(domainId, domainName, runtime) {
+            const panel = _settingsPanelEl(domainId);
+            if (!panel) return;
+
+            const isOpen = panel.style.display !== 'none';
+            if (isOpen) {
+                panel.style.display = 'none';
+                return;
+            }
+
+            panel.style.display = 'block';
+            panel.innerHTML = `<div style="color:#7f8c8d; font-size: 13px;">Loading settings...</div>`;
+
+            const res = await api('GET', `/domains/${domainId}/settings`);
+            if (!res.ok) {
+                panel.innerHTML = `<div style="color:#e74c3c;">Failed to load settings: ${_escapeHtml(res.error || 'Unknown error')}</div>`;
+                return;
+            }
+
+            const settings = res.data || {};
+            panel.innerHTML = renderSettingsForm(domainId, domainName, runtime, settings);
+        }
+
+        function renderSettingsForm(domainId, domainName, runtime, settings) {
+            runtime = (runtime || '').toLowerCase();
+
+            if (runtime === 'node') {
+                const entry = settings.node_entry_file || 'server.js';
+                const watch = !!settings.node_watch;
+                return `
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;">
+                        <div style="font-weight: 600;">${_escapeHtml(domainName)} Settings (Node)</div>
+                        <button class="btn-small" style="background:#2ecc71;" onclick="saveDomainSettings(${domainId}, '${_escapeHtml(domainName)}', '${runtime}')">💾 Save</button>
+                    </div>
+                    <div style="display:grid; grid-template-columns: 160px 1fr; gap: 8px 12px; align-items:center;">
+                        <div style="color:#7f8c8d; font-size: 13px;">Entry file</div>
+                        <input id="settings-node-entry-${domainId}" type="text" value="${_escapeHtml(entry)}" style="padding:8px; border:1px solid #ddd; border-radius:6px;" />
+                        <div style="color:#7f8c8d; font-size: 13px;">Dev watch</div>
+                        <label style="font-size: 13px;"><input id="settings-node-watch-${domainId}" type="checkbox" ${watch ? 'checked' : ''} /> Use <code>node --watch</code> (dev only)</label>
+                    </div>
+                    <div style="margin-top:8px; color:#7f8c8d; font-size: 12px;">Saving will automatically restart the container if deployed.</div>
+                `;
+            }
+
+            if (runtime === 'python') {
+                const appTarget = settings.python_gunicorn_app || 'app:app';
+                const reloadFlag = !!settings.python_reload;
+                return `
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;">
+                        <div style="font-weight: 600;">${_escapeHtml(domainName)} Settings (Python)</div>
+                        <button class="btn-small" style="background:#2ecc71;" onclick="saveDomainSettings(${domainId}, '${_escapeHtml(domainName)}', '${runtime}')">💾 Save</button>
+                    </div>
+                    <div style="display:grid; grid-template-columns: 160px 1fr; gap: 8px 12px; align-items:center;">
+                        <div style="color:#7f8c8d; font-size: 13px;">Gunicorn app</div>
+                        <input id="settings-py-app-${domainId}" type="text" value="${_escapeHtml(appTarget)}" style="padding:8px; border:1px solid #ddd; border-radius:6px;" />
+                        <div style="color:#7f8c8d; font-size: 13px;">Dev reload</div>
+                        <label style="font-size: 13px;"><input id="settings-py-reload-${domainId}" type="checkbox" ${reloadFlag ? 'checked' : ''} /> Add <code>--reload</code> (dev only)</label>
+                    </div>
+                    <div style="margin-top:8px; color:#7f8c8d; font-size: 12px;">Saving will automatically restart the container if deployed.</div>
+                `;
+            }
+
+            if (runtime === 'php') {
+                return `
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;">
+                        <div style="font-weight: 600;">${_escapeHtml(domainName)} Settings (PHP)</div>
+                        <button class="btn-small" style="background:#3498db;" onclick="openPhpIniModal(${domainId}, '${_escapeHtml(domainName)}')">📝 Edit php.ini</button>
+                    </div>
+                    <div style="color:#7f8c8d; font-size: 13px;">Edit per-domain PHP ini overrides. Saving will restart the container if deployed.</div>
+                `;
+            }
+
+            return `
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;">
+                    <div style="font-weight: 600;">${_escapeHtml(domainName)} Settings</div>
+                </div>
+                <div style="color:#7f8c8d; font-size: 13px;">No runtime settings available yet for ${_escapeHtml(runtime || 'this runtime')}.</div>
+            `;
+        }
+
+        window.currentPhpIniDomainId = null;
+
+        async function openPhpIniModal(domainId, domainName) {
+            window.currentPhpIniDomainId = domainId;
+            document.getElementById('phpIniDomain').textContent = domainName;
+            document.getElementById('phpIniTextarea').value = '';
+            document.getElementById('phpIniModal').style.display = 'block';
+            document.getElementById('phpIniBackdrop').style.display = 'block';
+
+            const res = await api('GET', `/domains/${domainId}/phpini`);
+            if (!res.ok) {
+                showMessage(`❌ Failed to load php.ini: ${res.error || 'Unknown error'}`, 'error', false);
+                return;
+            }
+            const content = res.data && res.data.content !== undefined ? res.data.content : '';
+            document.getElementById('phpIniTextarea').value = content;
+        }
+
+        function closePhpIniModal() {
+            document.getElementById('phpIniModal').style.display = 'none';
+            document.getElementById('phpIniBackdrop').style.display = 'none';
+            window.currentPhpIniDomainId = null;
+        }
+
+        async function savePhpIni() {
+            const domainId = window.currentPhpIniDomainId;
+            if (!domainId) return;
+            const content = document.getElementById('phpIniTextarea').value || '';
+
+            showMessage('⏳ Saving php.ini...', 'loading', true);
+            const res = await api('PUT', `/domains/${domainId}/phpini`, { content });
+            if (!res.ok) {
+                showMessage(`❌ Failed to save php.ini: ${res.error || 'Unknown error'}`, 'error', false);
+                return;
+            }
+
+            showMessage('✅ php.ini saved. Applying (restart if deployed)...', 'success', false);
+            closePhpIniModal();
+            setTimeout(loadDomains, 1500);
+        }
+
+        async function saveDomainSettings(domainId, domainName, runtime) {
+            runtime = (runtime || '').toLowerCase();
+            const panel = _settingsPanelEl(domainId);
+            if (!panel) return;
+
+            let settings = {};
+            if (runtime === 'node') {
+                const entryEl = document.getElementById(`settings-node-entry-${domainId}`);
+                const watchEl = document.getElementById(`settings-node-watch-${domainId}`);
+                settings = {
+                    node_entry_file: (entryEl ? entryEl.value : 'server.js'),
+                    node_watch: !!(watchEl && watchEl.checked)
+                };
+            } else if (runtime === 'python') {
+                const appEl = document.getElementById(`settings-py-app-${domainId}`);
+                const reloadEl = document.getElementById(`settings-py-reload-${domainId}`);
+                settings = {
+                    python_gunicorn_app: (appEl ? appEl.value : 'app:app'),
+                    python_reload: !!(reloadEl && reloadEl.checked)
+                };
+            } else {
+                showMessage(`⚠️ No editable settings for ${domainName}`, 'warning');
+                return;
+            }
+
+            showMessage(`⏳ Saving settings for ${domainName}...`, 'loading', true);
+            const res = await api('PUT', `/domains/${domainId}/settings`, { settings });
+            if (!res.ok) {
+                showMessage(`❌ Failed to save settings: ${res.error || 'Unknown error'}`, 'error', false);
+                return;
+            }
+
+            showMessage(`✅ Settings saved. Applying (restart if deployed)...`, 'success', false);
+            // Refresh domains so user sees normal state (restart happens server-side in background)
+            setTimeout(loadDomains, 1500);
+        }
+
+        function openFrameworkModal(runtime) {
+            const modal = document.getElementById('frameworkModal');
+            const backdrop = document.getElementById('frameworkBackdrop');
+            
+            // Hide all framework options
+            document.getElementById('phpFrameworks').style.display = 'none';
+            document.getElementById('nodeFrameworks').style.display = 'none';
+            document.getElementById('pythonFrameworks').style.display = 'none';
+            
+            // Show the selected runtime's frameworks
+            if (runtime === 'php') {
+                document.getElementById('phpFrameworks').style.display = 'block';
+            } else if (runtime === 'node') {
+                document.getElementById('nodeFrameworks').style.display = 'block';
+            } else if (runtime === 'python') {
+                document.getElementById('pythonFrameworks').style.display = 'block';
+            }
+            
+            modal.style.display = 'flex';
+            backdrop.style.display = 'block';
+        }
+
+        function closeFrameworkModal() {
+            document.getElementById('frameworkModal').style.display = 'none';
+            document.getElementById('frameworkBackdrop').style.display = 'none';
+            window.pendingRuntimeChange = null;
+        }
+
+        async function proceedWithFramework() {
+            const boilerplate = document.querySelector('input[name="boilerplate"]:checked')?.value || 'blank';
+            
+            // This is for runtime changes only now
+            if (!window.pendingRuntimeChange) {
+                closeFrameworkModal();
+                return;
+            }
+            
+            const { domainId, domainName, newRuntime, newVersion } = window.pendingRuntimeChange;
+            
+            closeFrameworkModal();
+            showMessage(`⏳ Changing runtime for ${domainName}...`, 'loading', true);
+            
+            try {
+                // Step 1: Delete the existing domain
+                const deleteRes = await api('DELETE', `/domains/${domainId}`, {});
+                
+                if (!deleteRes.ok) {
+                    showMessage(`❌ Failed to delete domain: ${deleteRes.error || 'Unknown error'}`, 'error');
+                    setTimeout(loadDomains, 1500);
+                    return;
+                }
+                
+                // Wait for cleanup
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Step 2: Recreate domain with new runtime, version, and boilerplate
+                const createRes = await api('POST', '/domains', {
+                    domain: domainName,
+                    runtime: newRuntime,
+                    version: newVersion,
+                    boilerplate: boilerplate
+                });
+                
+                if (createRes.ok) {
+                    showMessage(`✅ Domain recreated, now deploying ${domainName}...`, 'loading', true);
+                    
+                    // Auto-deploy the site with selected boilerplate
+                    const deployRes = await api('POST', `/domains/${createRes.domain_id}/sites`, {
+                        name: 'main',
+                        runtime: newRuntime,
+                        boilerplate: boilerplate
+                    });
+                    
+                    if (deployRes.ok) {
+                        showMessage(`✅ Successfully changed ${domainName} to ${newVersion} and deployed!`, 'success');
+                        setTimeout(loadDomains, 1500);
+                    } else {
+                        showMessage(`⚠️ Domain created but deployment failed: ${deployRes.error || 'Unknown error'}`, 'warning');
+                        setTimeout(loadDomains, 2000);
+                    }
+                } else {
+                    showMessage(`❌ Failed to recreate domain: ${createRes.error || 'Unknown error'}`, 'error');
+                    setTimeout(loadDomains, 2000);
+                }
+            } catch (e) {
+                showMessage(`❌ Error: ${e.message}`, 'error');
+                setTimeout(loadDomains, 2000);
+            }
+        }
+
+        async function loadMailUsers() {
+            const domains = await api('GET', '/domains');
+            if (!domains.ok || !domains.data || domains.data.length === 0) {
+                document.getElementById('mailList').innerHTML = '<p style="color: #7f8c8d;">No domains. Create a domain first.</p>';
+                return;
+            }
+            
+            let html = '<table class="table"><thead><tr><th>Email</th><th>Domain</th><th>Created</th></tr></thead><tbody>';
+            let hasData = false;
+            
+            for (const d of domains.data) {
+                const res = await api('GET', `/domains/${d.id}/mail/users`);
+                if (res.ok && res.data) {
+                    res.data.forEach(m => {
+                        html += `<tr><td>${m.email}</td><td>${d.domain}</td><td>${new Date(m.created_at).toLocaleDateString()}</td></tr>`;
+                        hasData = true;
+                    });
+                }
+            }
+            
+            if (!hasData) {
+                html = '<p style="color: #7f8c8d; padding: 20px;">No mail users yet.</p>';
+            } else {
+                html += '</tbody></table>';
+            }
+            
+            document.getElementById('mailList').innerHTML = html;
+        }
+
+        async function createMailUser(e) {
+            e.preventDefault();
+            const domain_id = document.getElementById('mailDomain').value;
+            const email = document.getElementById('mailEmail').value;
+            const password = document.getElementById('mailPassword').value;
+            
+            const res = await api('POST', `/domains/${domain_id}/mail/users`, {email, password});
+            if (res.ok) {
+                showMessage(`✅ Mail user ${email} created!`);
+                document.getElementById('mailEmail').value = '';
+                document.getElementById('mailPassword').value = '';
+                setTimeout(loadMailUsers, 500);
+            } else {
+                showMessage(`❌ Error: ${res.error}`, 'error');
+            }
+        }
+
+        async function loadDatabasesData() {
+            const domains = await api('GET', '/domains');
+            if (!domains.ok || !domains.data || domains.data.length === 0) {
+                document.getElementById('databasesList').innerHTML = '<p>No domains. Create a domain first.</p>';
+                return;
+            }
+            
+            let html = '<table class="table"><thead><tr><th>Database</th><th>Domain</th><th>Created</th></tr></thead><tbody>';
+            let hasData = false;
+            
+            for (const d of domains.data) {
+                const res = await api('GET', `/domains/${d.id}/databases`);
+                if (res.ok && res.data) {
+                    res.data.forEach(db => {
+                        html += `<tr><td>${db.name}</td><td>${d.domain}</td><td>${new Date(db.created_at).toLocaleDateString()}</td></tr>`;
+                        hasData = true;
+                    });
+                }
+            }
+            
+            if (!hasData) {
+                html = '<p style="color: #7f8c8d; padding: 20px;">No databases yet.</p>';
+            } else {
+                html += '</tbody></table>';
+            }
+            
+            document.getElementById('databasesList').innerHTML = html;
+        }
+
+        async function createDatabase(e) {
+            e.preventDefault();
+            const domain_id = document.getElementById('dbDomain').value;
+            const name = document.getElementById('dbName').value;
+            
+            const res = await api('POST', `/domains/${domain_id}/databases`, {name});
+            if (res.ok) {
+                showMessage(`✅ Database ${name} created!`);
+                document.getElementById('dbName').value = '';
+                setTimeout(loadDatabasesData, 500);
+            } else {
+                showMessage(`❌ Error: ${res.error}`, 'error');
+            }
+        }
+
+        async function loadSites() {
+            const domains = await api('GET', '/domains');
+            if (!domains.ok || !domains.data || domains.data.length === 0) {
+                document.getElementById('sitesList').innerHTML = '<p>No domains. Create a domain first.</p>';
+                return;
+            }
+            
+            let html = '<table class="table"><thead><tr><th>Site</th><th>Domain</th><th>Status</th><th>Created</th></tr></thead><tbody>';
+            let hasData = false;
+            
+            for (const d of domains.data) {
+                const res = await api('GET', `/domains/${d.id}/sites`);
+                if (res.ok && res.data) {
+                    res.data.forEach(s => {
+                        const status = s.status || 'running';
+                        html += `<tr>
+                            <td>${s.name || 'main'}</td>
+                            <td>${d.domain}</td>
+                            <td><span class="badge active">${status}</span></td>
+                            <td>${new Date(s.created_at).toLocaleDateString()}</td>
+                        </tr>`;
+                        hasData = true;
+                    });
+                }
+            }
+            
+            if (!hasData) {
+                html = '<p style="color: #7f8c8d; padding: 20px;">No sites deployed yet.</p>';
+            } else {
+                html += '</tbody></table>';
+            }
+            
+            document.getElementById('sitesList').innerHTML = html;
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = '/';
+        }
+
+        window.addEventListener('load', loadDashboard);
+    </script>
+</body>
+</html>
