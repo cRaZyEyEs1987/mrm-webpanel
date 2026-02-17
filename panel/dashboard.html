@@ -431,9 +431,9 @@
         <nav>
             <a onclick="showSection('dashboard')" class="nav-link active">📊 Dashboard</a>
             <a onclick="showSection('domains')" class="nav-link">🌐 Domains</a>
+            <a onclick="showSection('dns')" class="nav-link">🌍 DNS</a>
             <a onclick="showSection('mail')" class="nav-link">📧 Mail</a>
             <a onclick="showSection('databases')" class="nav-link">🗄️ Databases</a>
-            <a onclick="showSection('sites')" class="nav-link">🐳 Sites</a>
             <hr style="margin: 20px 0; opacity: 0.3;">
             <a onclick="logout()" class="nav-link">🚪 Logout</a>
         </nav>
@@ -463,11 +463,28 @@
                     <div class="label">Active Sites</div>
                 </div>
             </div>
+            
+            <div class="card">
+                <h2>System Information</h2>
+                <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+                    <div><strong>CPU Usage:</strong> <span id="cpuUsage">-</span></div>
+                    <div><strong>RAM Used:</strong> <span id="ramUsed">-</span></div>
+                    <div><strong>RAM Free:</strong> <span id="ramFree">-</span></div>
+                    <div><strong>Swap Used:</strong> <span id="swapUsed">-</span></div>
+                    <div><strong>Swap Free:</strong> <span id="swapFree">-</span></div>
+                    <div><strong>Disk Usage:</strong> <span id="diskUsage">-</span></div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2>Docker Containers</h2>
+                <div id="dockerContainers">Loading...</div>
+            </div>
+            
             <div class="card">
                 <h2>Quick Actions</h2>
                 <button onclick="showSection('domains')">📁 Create New Domain</button>
                 <button class="secondary" onclick="showSection('mail')">📧 Add Mail User</button>
-                <button class="secondary" onclick="showSection('sites')">🐳 Deploy Site</button>
             </div>
         </div>
 
@@ -496,9 +513,18 @@
                         </select>
                     </div>
                     <div class="form-group" id="createWordpressGroup" style="display:none;">
-                        <label style="display:block; margin-bottom: 6px;">Options</label>
-                        <label style="display:flex; gap: 10px; align-items:center; cursor:pointer; font-size: 13px; color:#555;">
-                            <input type="checkbox" id="createInstallWordpress" /> Install WordPress (auto-deploy)
+                        <label style="display:block; margin-bottom: 6px;">WordPress Admin Credentials</label>
+                        <div style="margin-bottom: 10px;">
+                            <input type="text" id="wpAdminUser" placeholder="Admin Username (default: admin)" style="margin-bottom: 8px;">
+                        </div>
+                        <div style="margin-bottom: 10px;">
+                            <input type="password" id="wpAdminPass" placeholder="Admin Password (auto-generated if empty)" style="margin-bottom: 8px;">
+                        </div>
+                        <div>
+                            <input type="email" id="wpAdminEmail" placeholder="Admin Email (optional)" style="margin-bottom: 8px;">
+                        </div>
+                        <label style="display:flex; gap: 10px; align-items:center; cursor:pointer; font-size: 13px; color:#555; margin-top: 8px;">
+                            <input type="checkbox" id="createInstallWordpress" checked /> Auto-install WordPress
                         </label>
                     </div>
                     <button type="submit">Create Domain</button>
@@ -565,6 +591,52 @@
             </div>
         </div>
 
+        <!-- DNS Section -->
+        <div id="dns" class="content">
+            <div class="card">
+                <h2>DNS Records Management</h2>
+                <div class="form-group">
+                    <label>Select Domain</label>
+                    <select id="dnsFilterDomain" onchange="loadDNSRecords()">
+                        <option value="">Select a domain...</option>
+                    </select>
+                </div>
+                
+                <div id="dnsRecordsContainer" style="display: none;">
+                    <h3 style="margin: 20px 0 10px 0;">Current Records for <span id="selectedDnsDomain"></span></h3>
+                    <div id="dnsRecordsList" class="loading">Loading DNS records...</div>
+                    
+                    <h3 style="margin: 30px 0 10px 0;">Add New DNS Record</h3>
+                    <form onsubmit="addDNSRecord(event)" style="display: grid; grid-template-columns: 1fr 2fr 3fr 1fr auto; gap: 10px; align-items: end;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Type</label>
+                            <select id="dnsRecordType" required>
+                                <option value="A">A</option>
+                                <option value="AAAA">AAAA</option>
+                                <option value="CNAME">CNAME</option>
+                                <option value="MX">MX</option>
+                                <option value="TXT">TXT</option>
+                                <option value="NS">NS</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Name</label>
+                            <input type="text" id="dnsRecordName" placeholder="@ or subdomain" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Value</label>
+                            <input type="text" id="dnsRecordValue" placeholder="IP or value" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>TTL</label>
+                            <input type="number" id="dnsRecordTTL" value="3600" required>
+                        </div>
+                        <button type="submit" style="margin-bottom: 0;">Add Record</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
         <!-- Sites Section -->
         <div id="sites" class="content">
             <div class="card">
@@ -621,6 +693,19 @@
                     <label style="display:flex; gap: 10px; align-items:center; cursor:pointer; font-size: 13px; color:#555;">
                         <input type="checkbox" id="changeInstallWordpress" /> Install WordPress (auto-deploy)
                     </label>
+                </div>
+
+                <div class="form-group" id="changeWordpressAdminGroup" style="display:none; margin-top: 8px;">
+                    <label style="display:block; margin-bottom: 6px;">WordPress Admin Credentials (optional)</label>
+                    <div style="margin-bottom: 8px;">
+                        <input type="text" id="changeWpAdminUser" placeholder="Admin Username (default: admin)" style="width:100%; padding:8px;" />
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <input type="password" id="changeWpAdminPass" placeholder="Admin Password (auto-generated if empty)" style="width:100%; padding:8px;" />
+                    </div>
+                    <div>
+                        <input type="email" id="changeWpAdminEmail" placeholder="Admin Email (optional)" style="width:100%; padding:8px;" />
+                    </div>
                 </div>
                 
                 <div style="display: flex; gap: 10px; justify-content: flex-end;">
@@ -788,6 +873,71 @@
 
         <div id="sftpCredentialsBackdrop" class="modal-backdrop" style="display: none;" onclick="closeSFTPModal()"></div>
 
+        <!-- WordPress Credentials Modal -->
+        <div id="wpCredentialsModal" class="modal" style="display: none;">
+            <div class="modal-content" style="max-width: 700px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0;">🔐 WordPress Admin Credentials</h2>
+                    <button onclick="closeWPModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">✕</button>
+                </div>
+                
+                <div id="wpDomainName" style="color: #7f8c8d; font-size: 14px; margin-bottom: 20px;">
+                    Domain: <strong id="wpDomain"></strong>
+                </div>
+                
+                <div style="display: grid; gap: 15px;">
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; color: #7f8c8d; font-size: 13px;">Admin URL</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="wpAdminUrl" readonly style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: 'Courier New', monospace; background: #f8f9fa;">
+                            <button onclick="copyToClipboard('wpAdminUrl')" style="padding: 10px 15px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">📋 Copy</button>
+                            <button onclick="window.open(document.getElementById('wpAdminUrl').value, '_blank')" style="padding: 10px 15px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer;">🔗 Open</button>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; color: #7f8c8d; font-size: 13px;">Admin Username</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="wpUsername" readonly style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: 'Courier New', monospace; background: #f8f9fa;">
+                            <button onclick="copyToClipboard('wpUsername')" style="padding: 10px 15px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">📋 Copy</button>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; color: #7f8c8d; font-size: 13px;">Admin Password</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="wpPassword" readonly style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: 'Courier New', monospace; background: #f8f9fa;">
+                            <button onclick="copyToClipboard('wpPassword')" style="padding: 10px 15px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">📋 Copy</button>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; color: #7f8c8d; font-size: 13px;">Admin Email</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="wpEmail" readonly style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: 'Courier New', monospace; background: #f8f9fa;">
+                            <button onclick="copyToClipboard('wpEmail')" style="padding: 10px 15px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">📋 Copy</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 5px;">
+                    <strong>💡 Database Info:</strong>
+                    <div style="margin-top: 10px; font-size: 13px; color: #555; font-family: 'Courier New', monospace;">
+                        <div><strong>Name:</strong> <span id="wpDbName"></span></div>
+                        <div><strong>User:</strong> <span id="wpDbUser"></span></div>
+                        <div><strong>Password:</strong> <span id="wpDbPass"></span></div>
+                        <div><strong>Host:</strong> <span id="wpDbHost"></span></div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 25px; text-align: right;">
+                    <button onclick="closeWPModal()" style="padding: 12px 30px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 600;">Got it!</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="wpCredentialsBackdrop" class="modal-backdrop" style="display: none;" onclick="closeWPModal()"></div>
+
         <!-- PHP ini Editor Modal -->
         <div id="phpIniModal" class="modal" style="display: none;">
             <div class="modal-content" style="max-width: 900px;">
@@ -887,6 +1037,38 @@
         function closeSFTPModal() {
             document.getElementById('sftpCredentialsModal').style.display = 'none';
             document.getElementById('sftpCredentialsBackdrop').style.display = 'none';
+        }
+
+        async function showWordPressCredentials(domain, domainId) {
+            // Fetch WordPress credentials from API
+            const res = await api('GET', `/domains/${domainId}/wordpress`);
+            
+            if (!res.ok || !res.wordpress) {
+                showMessage('❌ WordPress credentials not found', 'error');
+                return;
+            }
+            
+            const wp = res.wordpress;
+            
+            document.getElementById('wpDomain').textContent = domain;
+            document.getElementById('wpAdminUrl').value = `${wp.site_url}/wp-admin`;
+            document.getElementById('wpUsername').value = wp.admin_username;
+            document.getElementById('wpPassword').value = wp.admin_password;
+            document.getElementById('wpEmail').value = wp.admin_email || '-';
+            
+            // Database info
+            document.getElementById('wpDbName').textContent = wp.db_name || '-';
+            document.getElementById('wpDbUser').textContent = wp.db_user || '-';
+            document.getElementById('wpDbPass').textContent = wp.db_password || '-';
+            document.getElementById('wpDbHost').textContent = wp.db_host || '-';
+            
+            document.getElementById('wpCredentialsModal').style.display = 'block';
+            document.getElementById('wpCredentialsBackdrop').style.display = 'block';
+        }
+
+        function closeWPModal() {
+            document.getElementById('wpCredentialsModal').style.display = 'none';
+            document.getElementById('wpCredentialsBackdrop').style.display = 'none';
         }
 
         function copyToClipboard(inputId) {
@@ -1039,6 +1221,11 @@
             document.getElementById('domainCount').textContent = (domains.ok && domains.data?.length) ? domains.data.length : 0;
             document.getElementById('mailCount').textContent = mailCount;
             document.getElementById('siteCount').textContent = siteCount;
+            
+            // Load system info and docker containers
+            loadSystemInfo();
+            loadDockerContainers();
+            populateDNSDomains();
         }
 
         async function loadDomains() {
@@ -1063,6 +1250,10 @@
                     const isDeployed = sitesRes.ok && sitesRes.data && sitesRes.data.length > 0;
                     const deployedSite = isDeployed ? sitesRes.data[0] : null;
                     
+                    // Check for WordPress credentials
+                    const wpRes = await api('GET', `/domains/${d.id}/wordpress`);
+                    const wpInfo = (wpRes.ok && wpRes.wordpress) ? wpRes.wordpress : null;
+                    
                     // Runtime badge color
                     const runtimeClass = d.runtime.toLowerCase();
                     const statusClass = isDeployed ? 'status-deployed' : 'status-notdeployed';
@@ -1079,6 +1270,7 @@
                                     <span class="badge ${runtimeClass}">${d.runtime.toUpperCase()}</span>
                                     <span style="margin-left: 8px; font-size: 12px; color: #95a5a6;">${versionText}</span>
                                     ${d.sftp_username ? `<span style="margin-left: 8px; font-size: 12px; color: #27ae60; cursor: pointer;" onclick="showSFTPCredentials('${d.domain}', '${d.sftp_username}', '${d.sftp_password || 'N/A'}')">🔑 SFTP</span>` : ''}
+                                    ${wpInfo ? `<span style="margin-left: 8px; font-size: 12px; color: #e74c3c; cursor: pointer;" onclick="showWordPressCredentials('${d.domain}', ${d.id})">🔐 WP Admin</span>` : ''}
                                 </div>
                             </div>
                             <div class="domain-status">
@@ -1113,7 +1305,7 @@
             }
             document.getElementById('domainsList').innerHTML = html;
 
-            const selects = ['mailDomain', 'dbDomain'];
+            const selects = ['mailDomain', 'dbDomain', 'siteDomain'];
             selects.forEach(id => {
                 const el = document.getElementById(id);
                 el.innerHTML = '<option value="">Select Domain</option>';
@@ -1218,13 +1410,29 @@
                 // Optional: auto-deploy WordPress for PHP
                 if (installWp) {
                     showMessage(`⏳ Deploying WordPress for ${domain}...`, 'loading', true);
+                    
+                    const wpAdminUser = document.getElementById('wpAdminUser')?.value || 'admin';
+                    const wpAdminPass = document.getElementById('wpAdminPass')?.value || '';
+                    const wpAdminEmail = document.getElementById('wpAdminEmail')?.value || `admin@${domain}`;
+                    
                     const deployRes = await api('POST', `/domains/${res.domain_id}/sites`, {
                         name: 'main',
                         runtime: runtimeType,
-                        boilerplate: 'wordpress'
+                        boilerplate: 'wordpress',
+                        wp_admin_user: wpAdminUser,
+                        wp_admin_pass: wpAdminPass,
+                        wp_admin_email: wpAdminEmail
                     });
                     if (deployRes.ok) {
-                        showMessage(`✅ WordPress deployed for ${domain}!`, 'success', false);
+                        let wpMessage = `✅ WordPress deployed for ${domain}!`;
+                        if (deployRes.wordpress_database) {
+                            wpMessage += `\n\n📊 Database:\n`;
+                            wpMessage += `Name: ${deployRes.wordpress_database.database}\n`;
+                            wpMessage += `User: ${deployRes.wordpress_database.username}\n`;
+                            wpMessage += `Pass: ${deployRes.wordpress_database.password}\n`;
+                            wpMessage += `Host: ${deployRes.wordpress_database.host}`;
+                        }
+                        showMessage(wpMessage, 'success', true);
                     } else {
                         showMessage(`⚠️ Domain created but WordPress deploy failed: ${deployRes.error || 'Unknown error'}`, 'warning', false);
                     }
@@ -1233,6 +1441,9 @@
                 document.getElementById('domainName').value = '';
                 document.getElementById('runtimeType').value = '';
                 document.getElementById('runtimeVersion').value = '';
+                document.getElementById('wpAdminUser').value = '';
+                document.getElementById('wpAdminPass').value = '';
+                document.getElementById('wpAdminEmail').value = '';
                 const wpCheckbox = document.getElementById('createInstallWordpress');
                 if (wpCheckbox) wpCheckbox.checked = false;
                 updateVersions();
@@ -1499,10 +1710,14 @@
             // PHP-only WordPress checkbox
             const wpGroup = document.getElementById('changeWordpressGroup');
             const wpCheckbox = document.getElementById('changeInstallWordpress');
+            const wpAdminGroup = document.getElementById('changeWordpressAdminGroup');
             if (wpGroup && wpCheckbox) {
                 const isPhp = (runtimeType || '').toLowerCase() === 'php';
                 wpGroup.style.display = isPhp ? 'block' : 'none';
-                if (!isPhp) wpCheckbox.checked = false;
+                if (!isPhp) {
+                    wpCheckbox.checked = false;
+                    if (wpAdminGroup) wpAdminGroup.style.display = 'none';
+                }
             }
             
             versionSelect.innerHTML = '<option value="">Select Version</option>';
@@ -1527,6 +1742,15 @@
                 versionSelect.disabled = true;
             }
         }
+
+        // Show/hide WordPress admin inputs when the 'Install WordPress' checkbox changes
+        document.addEventListener('change', function (e) {
+            if (e.target && e.target.id === 'changeInstallWordpress') {
+                const adminGroup = document.getElementById('changeWordpressAdminGroup');
+                if (!adminGroup) return;
+                adminGroup.style.display = e.target.checked ? 'block' : 'none';
+            }
+        });
 
         async function saveRuntimeChange() {
             const domainId = window.currentChangeDomainId;
@@ -1574,11 +1798,23 @@
                 if (createRes.ok) {
                     // Auto-deploy the site (WordPress for PHP when selected)
                     const boilerplate = installWp ? 'wordpress' : 'blank';
-                    const deployRes = await api('POST', `/domains/${createRes.domain_id}/sites`, {
+                    // Collect WordPress admin creds from modal if present
+                    const changeWpUser = document.getElementById('changeWpAdminUser')?.value || '';
+                    const changeWpPass = document.getElementById('changeWpAdminPass')?.value || '';
+                    const changeWpEmail = document.getElementById('changeWpAdminEmail')?.value || `admin@${domainName}`;
+
+                    const deployPayload = {
                         name: 'main',
                         runtime: newRuntime,
                         boilerplate
-                    });
+                    };
+                    if (boilerplate === 'wordpress') {
+                        deployPayload.wp_admin_user = changeWpUser || undefined;
+                        deployPayload.wp_admin_pass = changeWpPass || undefined;
+                        deployPayload.wp_admin_email = changeWpEmail || undefined;
+                    }
+
+                    const deployRes = await api('POST', `/domains/${createRes.domain_id}/sites`, deployPayload);
                     
                     if (deployRes.ok) {
                         // Open deployment logs modal to show real-time progress
@@ -1961,14 +2197,21 @@
                 return;
             }
             
-            let html = '<table class="table"><thead><tr><th>Database</th><th>Domain</th><th>Created</th></tr></thead><tbody>';
+            let html = '<table class="table"><thead><tr><th>Database</th><th>Username</th><th>Password</th><th>Host</th><th>Domain</th><th>Created</th></tr></thead><tbody>';
             let hasData = false;
             
             for (const d of domains.data) {
                 const res = await api('GET', `/domains/${d.id}/databases`);
                 if (res.ok && res.data) {
                     res.data.forEach(db => {
-                        html += `<tr><td>${db.name}</td><td>${d.domain}</td><td>${new Date(db.created_at).toLocaleDateString()}</td></tr>`;
+                        html += `<tr>
+                            <td><code>${db.name}</code></td>
+                            <td><code>${db.username || '-'}</code></td>
+                            <td><code style="font-size: 0.85em;">${db.password || '-'}</code></td>
+                            <td><code>${db.host}</code></td>
+                            <td>${d.domain}</td>
+                            <td>${new Date(db.created_at).toLocaleDateString()}</td>
+                        </tr>`;
                         hasData = true;
                     });
                 }
@@ -1990,7 +2233,13 @@
             
             const res = await api('POST', `/domains/${domain_id}/databases`, {name});
             if (res.ok) {
-                showMessage(`✅ Database ${name} created!`);
+                const credentials = `
+                    Database: ${res.database}
+                    Username: ${res.username}
+                    Password: ${res.password}
+                    Host: ${res.host}
+                `;
+                showMessage(`✅ Database created!\n${credentials}`);
                 document.getElementById('dbName').value = '';
                 setTimeout(loadDatabasesData, 500);
             } else {
@@ -2031,6 +2280,123 @@
             }
             
             document.getElementById('sitesList').innerHTML = html;
+        }
+
+        async function createSite(e) {
+            e.preventDefault();
+            const domain_id = document.getElementById('siteDomain').value;
+            const site_name = document.getElementById('siteName').value;
+            
+            const res = await api('POST', `/domains/${domain_id}/sites`, {name: site_name});
+            if (res.ok) {
+                let message = `✅ Site deployment started!`;
+                
+                // If WordPress database was auto-created, show the credentials
+                if (res.wordpress_database) {
+                    message += `\n\nWordPress Database Created:
+Database: ${res.wordpress_database.database}
+Username: ${res.wordpress_database.username}
+Password: ${res.wordpress_database.password}
+Host: ${res.wordpress_database.host}`;
+                }
+                
+                showMessage(message, 'success', true);  // Make it persistent so user can copy credentials
+                document.getElementById('siteName').value = '';
+                setTimeout(loadSites, 1000);
+            } else {
+                showMessage(`❌ Error: ${res.error}`, 'error');
+            }
+        }
+
+        async function loadDNSRecords() {
+            const domainSelect = document.getElementById('dnsFilterDomain');
+            const domainId = domainSelect.value;
+            
+            if (!domainId) {
+                document.getElementById('dnsRecordsContainer').style.display = 'none';
+                return;
+            }
+            
+            const domainName = domainSelect.options[domainSelect.selectedIndex].text;
+            document.getElementById('selectedDnsDomain').textContent = domainName;
+            document.getElementById('dnsRecordsContainer').style.display = 'block';
+            
+            const res = await api('GET', `/domains/${domainId}/dns/records`);
+            if (res.ok && res.data) {
+                if (res.data.length === 0) {
+                    document.getElementById('dnsRecordsList').innerHTML = '<p style="color: #7f8c8d;">No DNS records yet. Add one below.</p>';
+                } else {
+                    let html = '<table class="table"><thead><tr><th>Type</th><th>Name</th><th>Value</th><th>TTL</th><th>Priority</th></tr></thead><tbody>';
+                    res.data.forEach(r => {
+                        html += `<tr><td>${r.type}</td><td>${r.name || '@'}</td><td>${r.value}</td><td>${r.ttl}</td><td>${r.priority || '-'}</td></tr>`;
+                    });
+                    html += '</tbody></table>';
+                    document.getElementById('dnsRecordsList').innerHTML = html;
+                }
+            } else {
+                document.getElementById('dnsRecordsList').innerHTML = '<p style="color: #e74c3c;">Failed to load DNS records</p>';
+            }
+        }
+
+        async function addDNSRecord(e) {
+            e.preventDefault();
+            const domainId = document.getElementById('dnsFilterDomain').value;
+            const type = document.getElementById('dnsRecordType').value;
+            const name = document.getElementById('dnsRecordName').value;
+            const value = document.getElementById('dnsRecordValue').value;
+            const ttl = document.getElementById('dnsRecordTTL').value;
+            
+            const res = await api('POST', `/domains/${domainId}/dns/records`, {type, name, value, ttl: parseInt(ttl)});
+            if (res.ok) {
+                showMessage(`✅ DNS record added!`);
+                document.getElementById('dnsRecordName').value = '@';
+                document.getElementById('dnsRecordValue').value = '';
+                setTimeout(loadDNSRecords, 500);
+            } else {
+                showMessage(`❌ Error: ${res.error}`, 'error');
+            }
+        }
+
+        async function loadSystemInfo() {
+            const res = await api('GET', '/system/info');
+            if (res.ok) {
+                document.getElementById('cpuUsage').textContent = res.cpu_usage || '-';
+                document.getElementById('ramUsed').textContent = res.ram_used || '-';
+                document.getElementById('ramFree').textContent = res.ram_free || '-';
+                document.getElementById('swapUsed').textContent = res.swap_used || '-';
+                document.getElementById('swapFree').textContent = res.swap_free || '-';
+                document.getElementById('diskUsage').textContent = res.disk_usage || '-';
+            }
+        }
+
+        async function loadDockerContainers() {
+            const res = await api('GET', '/docker/containers');
+            if (res.ok && res.containers) {
+                if (res.containers.length === 0) {
+                    document.getElementById('dockerContainers').innerHTML = '<p style="color: #7f8c8d;">No containers running</p>';
+                } else {
+                    let html = '<table class="table"><thead><tr><th>Container</th><th>Domain</th><th>Status</th><th>Image</th></tr></thead><tbody>';
+                    res.containers.forEach(c => {
+                        const statusColor = c.status.toLowerCase().includes('up') ? '#27ae60' : '#e74c3c';
+                        html += `<tr><td>${c.name}</td><td>${c.domain || '-'}</td><td style="color: ${statusColor};">${c.status}</td><td>${c.image}</td></tr>`;
+                    });
+                    html += '</tbody></table>';
+                    document.getElementById('dockerContainers').innerHTML = html;
+                }
+            } else {
+                document.getElementById('dockerContainers').innerHTML = '<p style="color: #e74c3c;">Failed to load containers</p>';
+            }
+        }
+
+        async function populateDNSDomains() {
+            const domains = await api('GET', '/domains');
+            if (domains.ok && domains.data) {
+                const select = document.getElementById('dnsFilterDomain');
+                select.innerHTML = '<option value="">Select a domain...</option>';
+                domains.data.forEach(d => {
+                    select.innerHTML += `<option value="${d.id}">${d.domain}</option>`;
+                });
+            }
         }
 
         function logout() {

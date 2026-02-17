@@ -26,11 +26,12 @@ class DockerEngine:
         'php82': 'php:8.2-apache',
     }
     
-    def __init__(self, domain, runtime, site_id=None, version=None, boilerplate=None):
+    def __init__(self, domain, runtime, site_id=None, version=None, boilerplate=None, wp_config=None):
         self.domain = domain
         self.runtime = runtime
         self.version = version or 'node18'  # Default version
         self.boilerplate = boilerplate or 'blank'  # Default boilerplate
+        self.wp_config = wp_config  # WordPress configuration (DB + admin credentials)
         self.site_id = site_id or domain
         self.site_dir = os.path.join(SITES_DIR, domain)
         self.compose_file = os.path.join(self.site_dir, 'compose.yml')
@@ -46,7 +47,7 @@ class DockerEngine:
         self.deployment_phase = 'initializing'
         self.deployment_progress = 0
         
-        logger.info(f"DockerEngine initialized: domain={domain}, runtime={runtime}, version={version}, boilerplate={boilerplate}, image={self.docker_image}")
+        logger.info(f"DockerEngine initialized: domain={domain}, runtime={runtime}, version={version}, boilerplate={boilerplate}, image={self.docker_image}, wp_config={bool(wp_config)}")
     
     def get_friendly_version_label(self):
         """Get a human-friendly label for the current version."""
@@ -391,6 +392,212 @@ header('Content-Type: text/html');
 '''
         with open(os.path.join(self.data_dir, 'index.php'), 'w') as f:
             f.write(index_php)
+    
+    def _create_wordpress_install_script(self):
+        """Create WordPress CLI auto-install script.
+
+        Note: We no longer override the WordPress image command to run this
+        automatically, because doing so prevents the official image entrypoint
+        from copying WordPress files into /var/www/html when the volume is empty.
+        This script is still useful for debugging, but auto-install is performed
+        via docker exec in `_wordpress_auto_install()`.
+        """
+        install_script = f'''#!/bin/bash
+# WordPress Auto-Install Script
+
+# Check if WordPress is already installed
+if wp core is-installed --path=/var/www/html --allow-root 2>/dev/null; then
+    echo "WordPress is already installed"
+    exit 0
+fi
+
+# Install WP-CLI if not present
+if [ ! -f /usr/local/bin/wp ]; then
+    echo "Installing WP-CLI..."
+    curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+    chmod +x wp-cli.phar
+    mv wp-cli.phar /usr/local/bin/wp
+fi
+
+# Wait for database to be ready
+echo "Waiting for database connection..."
+until wp db check --path=/var/www/html --allow-root 2>/dev/null; do
+    echo "Database not ready, waiting..."
+    sleep 5
+done
+echo "Database connection established"
+
+# Download WordPress core if not present
+if [ ! -f /var/www/html/wp-config.php ]; then
+    echo "Downloading WordPress core..."
+    wp core download --path=/var/www/html --allow-root --force
+    
+    echo "Creating wp-config.php..."
+    wp config create \\
+        --dbname="${{WP_DB_NAME}}" \\
+        --dbuser="${{WP_DB_USER}}" \\
+        --dbpass="${{WP_DB_PASSWORD}}" \\
+        --dbhost="${{WP_DB_HOST}}" \\
+        --path=/var/www/html \\
+        --allow-root --force
+fi
+
+# Install WordPress
+echo "Installing WordPress..."
+wp core install \\
+    --url="${{WP_SITE_URL}}" \\
+    --title="${{DOMAIN}}" \\
+    --admin_user="${{WP_ADMIN_USER}}" \\
+    --admin_password="${{WP_ADMIN_PASS}}" \\
+    --admin_email="${{WP_ADMIN_EMAIL}}" \\
+    --path=/var/www/html \\
+    --skip-email \\
+    --allow-root
+
+# Set permissions
+chown -R www-data:www-data /var/www/html
+chmod -R 755 /var/www/html
+
+echo "WordPress installation complete!"
+echo "Admin URL: ${{WP_SITE_URL}}/wp-admin"
+echo "Username: ${{WP_ADMIN_USER}}"
+'''
+        script_path = os.path.join(self.site_dir, 'wp-auto-install.sh')
+        with open(script_path, 'w') as f:
+            f.write(install_script)
+        os.chmod(script_path, 0o755)
+        logger.info(f"Created WordPress auto-install script at {script_path}")
+
+    def _container_name(self) -> str:
+        return f"{self.domain}-app"
+
+    def _wordpress_auto_install(self) -> bool:
+        """Run WP-CLI inside the running WordPress container to finalize install.
+
+        The official WordPress image will copy core files + may create wp-config.php
+        when started with WORDPRESS_DB_* env vars. We use WP-CLI to ensure wp-config
+        exists (with dbprefix) and run `wp core install` so admin credentials from
+        the panel are applied.
+        """
+        if self.boilerplate != 'wordpress' or not self.wp_config:
+            return True
+
+        container = self._container_name()
+        dbprefix = (self.wp_config.get('table_prefix') or '').strip() or 'wp_'
+
+        # Use higher memory limit for WP-CLI PHAR extraction
+        wp_cmd = 'php -d memory_limit=512M /usr/local/bin/wp'
+
+        script = f"""
+set -e
+cd /var/www/html
+
+# Check network connectivity
+echo 'Checking network connectivity...'
+if ! curl -s --max-time 5 https://raw.githubusercontent.com > /dev/null 2>&1; then
+    echo 'WARNING: Limited or no network connectivity detected'
+fi
+
+if [ ! -f /usr/local/bin/wp ]; then
+    echo 'Installing WP-CLI...'
+    # Try to download WP-CLI with timeout and retries
+    downloaded=0
+    for attempt in 1 2 3; do
+        echo "WP-CLI download attempt $attempt/3..."
+        if curl -sSLf --connect-timeout 10 --max-time 30 --retry 2 -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar; then
+            downloaded=1
+            break
+        fi
+        echo "Download failed, retrying in 3 seconds..."
+        sleep 3
+    done
+    
+    if [ $downloaded -eq 0 ]; then
+        echo 'ERROR: Failed to download WP-CLI after 3 attempts'
+        echo 'Please check:'
+        echo '1. Container has internet access'
+        echo '2. GitHub is accessible from your server'
+        echo '3. Firewall rules allow outbound HTTPS'
+        exit 1
+    fi
+    
+    chmod +x /usr/local/bin/wp
+    echo 'WP-CLI installed successfully'
+fi
+
+# Wait for WordPress core files to appear (entrypoint copies them on first run)
+for i in $(seq 1 60); do
+    if [ -f /var/www/html/wp-settings.php ] || [ -f /var/www/html/index.php ]; then
+        break
+    fi
+    echo 'Waiting for WordPress core files...'
+    sleep 2
+done
+
+# Wait for wp-config.php (the official image generates it from WORDPRESS_DB_* env vars)
+for i in $(seq 1 60); do
+    if [ -f /var/www/html/wp-config.php ]; then
+        break
+    fi
+    echo 'Waiting for wp-config.php...'
+    sleep 2
+done
+
+if {wp_cmd} core is-installed --path=/var/www/html --allow-root >/dev/null 2>&1; then
+    echo 'WordPress already installed'
+    exit 0
+fi
+
+# `wp db check` requires mysql client tools (mysqlcheck) which are not present in the
+# wordpress:php*-apache images by default. Instead, retry core install until DB is reachable.
+for i in $(seq 1 40); do
+    echo 'Running wp core install...'
+    if {wp_cmd} core install \
+        --url="${{WORDPRESS_SITE_URL}}" \
+        --title="${{WORDPRESS_SITE_TITLE}}" \
+        --admin_user="${{WORDPRESS_ADMIN_USER}}" \
+        --admin_password="${{WORDPRESS_ADMIN_PASSWORD}}" \
+        --admin_email="${{WORDPRESS_ADMIN_EMAIL}}" \
+        --skip-email \
+        --path=/var/www/html \
+        --allow-root; then
+        break
+    fi
+    sleep 3
+done
+
+if ! {wp_cmd} core is-installed --path=/var/www/html --allow-root >/dev/null 2>&1; then
+    echo 'ERROR: WordPress install did not complete in time'
+    exit 1
+fi
+
+chown -R www-data:www-data /var/www/html || true
+"""
+
+        try:
+            self._add_deployment_log('Finalizing WordPress install (WP-CLI)...')
+            result = subprocess.run(
+                ['docker', 'exec', container, 'sh', '-lc', script],
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+            out = (result.stdout or '').strip()
+            err = (result.stderr or '').strip()
+            if out:
+                for line in out.splitlines()[-200:]:
+                    self._add_deployment_log(line)
+            if err:
+                for line in err.splitlines()[-200:]:
+                    self._add_deployment_log(f"WP-CLI STDERR: {line}")
+
+            if result.returncode != 0:
+                self._add_deployment_log(f"ERROR: WordPress auto-install failed (exit {result.returncode})")
+                return False
+            return True
+        except Exception as e:
+            self._add_deployment_log(f"ERROR: WordPress auto-install exception: {e}")
+            return False
 
     def generate_compose_file(self):
         """Generate docker-compose.yml from template."""
@@ -410,6 +617,24 @@ header('Content-Type: text/html');
         content = content.replace('{{DOCKER_IMAGE}}', self.docker_image)
         content = content.replace('{{UPSTREAM_PORT}}', str(self.upstream_port))
         content = content.replace('{{CONTAINER_PORT}}', str(container_port))
+
+        def _escape_compose_value(value):
+            if value is None:
+                return ''
+            # docker compose interpolates `$VAR` in YAML; escape literal `$` as `$$`.
+            return str(value).replace('$', '$$')
+        
+        # WordPress-specific placeholders
+        if self.wp_config:
+            content = content.replace('{{WP_DB_HOST}}', _escape_compose_value(self.wp_config.get('db_host', 'localhost')))
+            content = content.replace('{{WP_DB_NAME}}', _escape_compose_value(self.wp_config.get('db_name', '')))
+            content = content.replace('{{WP_DB_USER}}', _escape_compose_value(self.wp_config.get('db_user', '')))
+            content = content.replace('{{WP_DB_PASSWORD}}', _escape_compose_value(self.wp_config.get('db_password', '')))
+            content = content.replace('{{WP_ADMIN_USER}}', _escape_compose_value(self.wp_config.get('admin_user', 'admin')))
+            content = content.replace('{{WP_ADMIN_PASS}}', _escape_compose_value(self.wp_config.get('admin_pass', '')))
+            content = content.replace('{{WP_ADMIN_EMAIL}}', _escape_compose_value(self.wp_config.get('admin_email', '')))
+            content = content.replace('{{WP_SITE_URL}}', _escape_compose_value(self.wp_config.get('site_url', '')))
+            content = content.replace('{{WP_TABLE_PREFIX}}', _escape_compose_value(self.wp_config.get('table_prefix', 'wp_')))
         
         # Write compose file
         with open(self.compose_file, 'w') as f:
@@ -640,6 +865,8 @@ server {{
             self.deployment_phase = 'creating_boilerplate'
             self._add_deployment_log(f"Creating {self.boilerplate} boilerplate code")
             self.create_boilerplate()  # AUTO-GENERATE APP CODE
+
+            # WordPress auto-install is performed via docker exec in `_wordpress_auto_install()`.
             
             self.deployment_phase = 'generating_compose'
             self._add_deployment_log("Generating docker-compose configuration")
@@ -656,6 +883,13 @@ server {{
                 logger.error("Container failed to become healthy within 5 minutes")
                 self.deployment_phase = 'failed'
                 return False
+
+            # WordPress: finalize install (admin user/password + wp-config with table prefix)
+            if self.boilerplate == 'wordpress' and self.wp_config:
+                if not self._wordpress_auto_install():
+                    logger.error('WordPress auto-install failed')
+                    self.deployment_phase = 'failed'
+                    return False
             
             # Now generate and reload nginx config
             self.deployment_phase = 'configuring_nginx'

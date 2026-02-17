@@ -398,6 +398,29 @@ mariadb -u root -p"$DB_ROOT_PASS" -e "GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB
 
 log "MariaDB configured successfully"
 
+# Allow Docker containers (WordPress) to reach MariaDB safely.
+# We bind MariaDB to 0.0.0.0 and then restrict access via UFW to docker0 only.
+MARIADB_SERVER_CNF="/etc/mysql/mariadb.conf.d/50-server.cnf"
+if [[ -f "$MARIADB_SERVER_CNF" ]]; then
+    if grep -qE '^\s*bind-address\s*=' "$MARIADB_SERVER_CNF"; then
+        sed -i -E 's/^\s*bind-address\s*=\s*.*/bind-address = 0.0.0.0/' "$MARIADB_SERVER_CNF"
+    else
+        # Insert under [mysqld] if present; otherwise append a minimal section.
+        if grep -qE '^\[mysqld\]' "$MARIADB_SERVER_CNF"; then
+            sed -i -E '/^\[mysqld\]$/a bind-address = 0.0.0.0' "$MARIADB_SERVER_CNF"
+        else
+            printf '\n[mysqld]\nbind-address = 0.0.0.0\n' >> "$MARIADB_SERVER_CNF"
+        fi
+    fi
+    systemctl restart mariadb >> "$LOG_FILE" 2>&1 || {
+        log_error "Failed to restart MariaDB after bind-address update"
+        exit 1
+    }
+    log "MariaDB bind-address configured for Docker access"
+else
+    log_info "MariaDB server config not found at $MARIADB_SERVER_CNF; skipping bind-address update"
+fi
+
 # Copy templates
 log_info "Installing templates..."
 if [[ -d "$INSTALL_DIR/templates" ]]; then
@@ -685,6 +708,11 @@ ufw allow 80/tcp comment 'HTTP' >> "$LOG_FILE" 2>&1
 ufw allow 443/tcp comment 'HTTPS' >> "$LOG_FILE" 2>&1
 ufw allow 5000/tcp comment 'Panel' >> "$LOG_FILE" 2>&1
 ufw allow 5000/tcp comment 'Panel' >> "$LOG_FILE" 2>&1
+
+# Allow MariaDB from Docker bridge only (needed for WordPress containers)
+if ip link show docker0 >/dev/null 2>&1; then
+    ufw allow in on docker0 to any port 3306 proto tcp comment 'MariaDB from Docker' >> "$LOG_FILE" 2>&1 || true
+fi
 
 # Allow DNS if enabled
 if [[ "$INSTALL_DNS" == "yes" ]]; then

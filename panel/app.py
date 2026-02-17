@@ -5,6 +5,11 @@ import logging
 from datetime import datetime
 from functools import wraps
 import re
+import subprocess
+import shutil
+import secrets
+import string
+import pymysql
 
 # Import panel modules
 from db import fetch_one, fetch_all, insert, update, delete, execute_query
@@ -51,8 +56,161 @@ DEFAULT_VERSIONS = {
     'php': 'php82',
 }
 
+# ============== Helper Functions ==============
+
+def generate_password(length=16):
+    """Generate a secure random password."""
+    alphabet = string.ascii_letters + string.digits + '!@#$%^&*'
+    password = ''.join(secrets.choice(alphabet) for i in range(length))
+    return password
+
+def slugify(text, max_length=16):
+    """Convert domain name to a slug suitable for database names/users."""
+    # Remove TLD and special chars, keep only alphanumeric and underscores
+    slug = re.sub(r'\.[a-z]+$', '', text.lower())  # Remove TLD
+    slug = re.sub(r'[^a-z0-9_]', '_', slug)  # Replace special chars with _
+    slug = re.sub(r'_+', '_', slug)  # Remove duplicate underscores
+    slug = slug.strip('_')  # Remove leading/trailing underscores
+    
+    # Truncate to max_length
+    if len(slug) > max_length:
+        slug = slug[:max_length]
+    
+    return slug
+
+def create_mysql_database_and_user(db_name, db_user, db_password):
+    """Create a MySQL database and user with full privileges."""
+    DB_HOST = os.environ.get('DB_HOST', 'localhost')
+    DB_ROOT_USER = os.environ.get('DB_USER', 'root')
+    DB_ROOT_PASS = os.environ.get('DB_PASS', 'root')
+    
+    try:
+        # Connect to MySQL as root without selecting a database
+        conn = pymysql.connect(
+            host=DB_HOST,
+            user=DB_ROOT_USER,
+            password=DB_ROOT_PASS,
+            charset='utf8mb4',
+            cursorclass=pymysql.cursors.DictCursor
+        )
+        
+        with conn.cursor() as cursor:
+            # Create database
+            cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+            
+            # Create user (use '%' for host to allow connections from anywhere, or 'localhost')
+            cursor.execute(
+                "CREATE USER IF NOT EXISTS %s@%s IDENTIFIED BY %s",
+                (db_user, '%', db_password),
+            )
+            
+            # Grant privileges
+            cursor.execute(
+                f"GRANT ALL PRIVILEGES ON `{db_name}`.* TO %s@%s",
+                (db_user, '%'),
+            )
+            cursor.execute("FLUSH PRIVILEGES")
+        
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Failed to create MySQL database/user: {e}")
+        return False
+
+def drop_mysql_database_and_user(db_name=None, db_user=None, database_id=None):
+    """Drop a MySQL/MariaDB database and optionally a user.
+
+    - If `db_name` is provided, attempts to `DROP DATABASE IF EXISTS `db_name``.
+    - If `db_user` is provided, only drops the MySQL user when it is not
+      referenced by any other `database_users` rows in the panel DB.
+
+    Returns True on success (or when nothing needed to be done), False on error.
+    """
+    DB_HOST = os.environ.get('DB_HOST', 'localhost')
+    DB_ROOT_USER = os.environ.get('DB_USER', 'root')
+    DB_ROOT_PASS = os.environ.get('DB_PASS', 'root')
+
+    if not db_name and not db_user:
+        logger.info("drop_mysql_database_and_user called with nothing to do")
+        return True
+
+    try:
+        conn = pymysql.connect(
+            host=DB_HOST,
+            user=DB_ROOT_USER,
+            password=DB_ROOT_PASS,
+            charset='utf8mb4',
+            cursorclass=pymysql.cursors.DictCursor
+        )
+
+        with conn.cursor() as cursor:
+            # Drop database if requested
+            if db_name:
+                try:
+                    cursor.execute(f"DROP DATABASE IF EXISTS `{db_name}`")
+                    logger.info(f"Dropped database if existed: {db_name}")
+                except Exception as e:
+                    logger.error(f"Failed to drop database {db_name}: {e}")
+
+            # Drop user if requested and safe
+            if db_user:
+                try:
+                    # Check panel DB references to this username
+                    try:
+                        ref = fetch_one("SELECT COUNT(*) AS cnt FROM database_users WHERE username=%s", (db_user,))
+                        count = (ref or {}).get('cnt', 0)
+                    except Exception:
+                        # If we cannot query panel DB references, be conservative and skip drop
+                        logger.warning(f"Could not verify references for DB user {db_user}; skipping DROP USER")
+                        count = 2
+
+                    if count <= 1:
+                        cursor.execute("DROP USER IF EXISTS %s@%s", (db_user, '%'))
+                        logger.info(f"Dropped MySQL user if existed: {db_user}@%")
+                    else:
+                        logger.info(f"Not dropping MySQL user {db_user} because it is referenced {count} times in panel DB")
+                except Exception as e:
+                    logger.error(f"Failed to drop MySQL user {db_user}: {e}")
+
+            try:
+                cursor.execute("FLUSH PRIVILEGES")
+            except Exception:
+                pass
+
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"drop_mysql_database_and_user failed: {e}")
+        return False
+
 # ============== Database Migrations ==============
 def ensure_database_schema():
+    """Ensure all database tables and columns exist."""
+    # Create wordpress_sites table if it doesn't exist
+    try:
+        execute_query("""
+            CREATE TABLE IF NOT EXISTS wordpress_sites (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                site_id INT NOT NULL,
+                domain_id INT NOT NULL,
+                admin_username VARCHAR(64) NOT NULL,
+                admin_password VARCHAR(255) NOT NULL,
+                admin_email VARCHAR(255),
+                site_url VARCHAR(255),
+                installed TINYINT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (site_id) REFERENCES sites(id) ON DELETE CASCADE,
+                FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
+                INDEX idx_site_id (site_id),
+                INDEX idx_domain_id (domain_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """)
+        logger.info("Ensured wordpress_sites table exists")
+    except Exception as e:
+        logger.warning(f"wordpress_sites table check: {e}")
+def ensure_database_schema_original():
     """Ensure all required columns exist in database tables."""
     try:
         # Check if version column exists in domains table
@@ -941,6 +1099,124 @@ def _apply_php_ini_if_deployed(domain_id: int, domain_row: dict):
     except Exception as e:
         logger.error(f"Failed to apply php.ini for domain_id={domain_id}: {e}")
 
+# ============== System & Docker Info Endpoints ==============
+
+@app.route('/system/info', methods=['GET'])
+@token_required
+def system_info():
+    """Get system resource usage (CPU, RAM, Disk, Swap)."""
+    try:
+        info = {}
+        
+        # Get disk usage for root filesystem
+        disk = shutil.disk_usage('/')
+        disk_total_gb = disk.total / (1024**3)
+        disk_used_gb = disk.used / (1024**3)
+        disk_percent = (disk.used / disk.total) * 100
+        info['disk_usage'] = f"{disk_used_gb:.1f}GB / {disk_total_gb:.1f}GB ({disk_percent:.1f}%)"
+        
+        # Get memory info from /proc/meminfo
+        with open('/proc/meminfo', 'r') as f:
+            meminfo = {}
+            for line in f:
+                parts = line.split(':')
+                if len(parts) == 2:
+                    key = parts[0].strip()
+                    value = parts[1].strip().split()[0]  # Get numeric value in kB
+                    meminfo[key] = int(value)
+        
+        # Calculate RAM
+        mem_total_gb = meminfo.get('MemTotal', 0) / (1024**2)
+        mem_available_gb = meminfo.get('MemAvailable', 0) / (1024**2)
+        mem_used_gb = mem_total_gb - mem_available_gb
+        info['ram_used'] = f"{mem_used_gb:.1f}GB / {mem_total_gb:.1f}GB"
+        info['ram_free'] = f"{mem_available_gb:.1f}GB"
+        
+        # Calculate Swap
+        swap_total_gb = meminfo.get('SwapTotal', 0) / (1024**2)
+        swap_free_gb = meminfo.get('SwapFree', 0) / (1024**2)
+        swap_used_gb = swap_total_gb - swap_free_gb
+        info['swap_used'] = f"{swap_used_gb:.1f}GB" if swap_total_gb > 0 else "N/A"
+        info['swap_free'] = f"{swap_free_gb:.1f}GB" if swap_total_gb > 0 else "N/A"
+        
+        # Get CPU usage (simple 1-minute load average)
+        with open('/proc/loadavg', 'r') as f:
+            load_avg = f.read().strip().split()[0]
+        info['cpu_usage'] = f"{float(load_avg):.2f}"
+        
+        return jsonify({'ok': True, **info}), 200
+        
+    except Exception as e:
+        logger.error(f"Failed to get system info: {e}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/docker/containers', methods=['GET'])
+@token_required
+def docker_containers():
+    """List all Docker containers with domain mapping."""
+    try:
+        # Run docker ps to get all containers
+        result = subprocess.run(
+            ['docker', 'ps', '-a', '--format', '{{.Names}}|{{.Status}}|{{.Image}}'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if result.returncode != 0:
+            return jsonify({'ok': False, 'error': 'Failed to get container list'}), 500
+        
+        containers = []
+        lines = result.stdout.strip().split('\n')
+        
+        # Get domain mapping from database
+        sites = fetch_all("""
+            SELECT s.id, s.name, d.domain 
+            FROM sites s 
+            JOIN domains d ON s.domain_id = d.id
+        """)
+        
+        # Create mapping from container name patterns to domains
+        domain_map = {}
+        for site in sites:
+            # Container names typically match pattern: domain.com_site-id or similar
+            domain_map[site['domain'].replace('.', '-')] = site['domain']
+            domain_map[str(site['id'])] = site['domain']
+        
+        for line in lines:
+            if not line.strip():
+                continue
+            
+            parts = line.split('|')
+            if len(parts) >= 3:
+                name = parts[0]
+                status = parts[1]
+                image = parts[2]
+                
+                # Try to find matching domain
+                matched_domain = None
+                for key, domain in domain_map.items():
+                    if key in name:
+                        matched_domain = domain
+                        break
+                
+                containers.append({
+                    'name': name,
+                    'status': status,
+                    'image': image,
+                    'domain': matched_domain
+                })
+        
+        return jsonify({'ok': True, 'containers': containers}), 200
+        
+    except subprocess.TimeoutExpired:
+        return jsonify({'ok': False, 'error': 'Docker command timed out'}), 500
+    except Exception as e:
+        logger.error(f"Failed to get docker containers: {e}")
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
 @app.route('/domains', methods=['GET'])
 @token_required
 def list_domains():
@@ -1259,6 +1535,56 @@ def delete_sftp_user(domain_id):
     except Exception as e:
         logger.error(f"Failed to delete SFTP user: {e}")
         return jsonify({'error': str(e)}), 500
+# Legacy create_site removed; unified handler below handles site creation and WordPress provisioning
+
+# ============== WordPress Management ==============
+
+@app.route('/domains/<int:domain_id>/wordpress', methods=['GET'])
+@token_required
+def get_wordpress_credentials(domain_id):
+    """Get WordPress admin credentials for a domain."""
+    if not RBAC.can_access_domain(request.current_user, domain_id):
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Get WordPress site for this domain
+    wp_site = fetch_one("""
+        SELECT w.*, s.name as site_name, s.status
+        FROM wordpress_sites w
+        JOIN sites s ON w.site_id = s.id
+        WHERE w.domain_id = %s
+        ORDER BY w.created_at DESC
+        LIMIT 1
+    """, (domain_id,))
+    
+    if not wp_site:
+        return jsonify({'ok': True, 'wordpress': None}), 200
+    
+    # Get database credentials
+    db_info = fetch_one("""
+        SELECT d.name as db_name, du.username as db_user, du.password_hash as db_password
+        FROM `databases` d
+        LEFT JOIN database_users du ON d.id = du.database_id
+        WHERE d.domain_id = %s AND d.name LIKE '%_wp'
+        ORDER BY d.created_at DESC
+        LIMIT 1
+    """, (domain_id,))
+    
+    result = {
+        'admin_username': wp_site['admin_username'],
+        'admin_password': wp_site['admin_password'],
+        'admin_email': wp_site['admin_email'],
+        'site_url': wp_site['site_url'],
+        'installed': bool(wp_site['installed']),
+        'site_status': wp_site['status']
+    }
+    
+    if db_info:
+        result['db_name'] = db_info['db_name']
+        result['db_user'] = db_info['db_user']
+        result['db_password'] = db_info['db_password']
+        result['db_host'] = os.environ.get('DB_HOST', 'localhost')
+    
+    return jsonify({'ok': True, 'wordpress': result}), 200
 
 # ============== Site Management ==============
 
@@ -1364,6 +1690,53 @@ def delete_site(domain_id, site_id):
             logger.error(f"Engine destroy exception: {str(engine_error)}")
             return jsonify({'error': f'Destroy failed: {str(engine_error)}'}), 500
         
+        # Clean up databases associated with this site
+        try:
+            # Find databases created for this site (matching domain_id)
+            site_databases = fetch_all("SELECT id, name FROM `databases` WHERE domain_id=%s", (domain_id,)) or []
+            for db in site_databases:
+                db_id = db.get('id')
+                db_name = db.get('name')
+                
+                # Drop the physical database
+                try:
+                    if db_name:
+                        if drop_mysql_database_and_user(db_name=db_name, db_user=None, database_id=db_id):
+                            logger.info(f"Dropped physical DB: {db_name} (associated with deleted site)")
+                        else:
+                            logger.warning(f"Failed to drop physical DB: {db_name}")
+                except Exception as e:
+                    logger.error(f"Exception dropping DB {db_name}: {e}")
+                
+                # Drop associated database users
+                try:
+                    users = fetch_all("SELECT id, username FROM database_users WHERE database_id=%s", (db_id,)) or []
+                    for u in users:
+                        uname = u.get('username')
+                        try:
+                            drop_mysql_database_and_user(db_name=None, db_user=uname, database_id=db_id)
+                            logger.info(f"Dropped DB user: {uname}")
+                        except Exception as e:
+                            logger.error(f"Exception dropping DB user {uname}: {e}")
+                except Exception as e:
+                    logger.error(f"Failed to fetch users for database id={db_id}: {e}")
+                
+                # Remove panel records
+                try:
+                    delete('database_users', 'database_id=%s', (db_id,))
+                    delete('databases', 'id=%s', (db_id,))
+                    logger.info(f"Removed database panel records for {db_name}")
+                except Exception as e:
+                    logger.error(f"Failed to delete panel DB records for {db_name}: {e}")
+        except Exception as e:
+            logger.error(f"Error while cleaning up databases for site {site_id}: {e}")
+        
+        # Clean up WordPress site record if it exists
+        try:
+            delete('wordpress_sites', 'site_id=%s', (site_id,))
+        except Exception as e:
+            logger.warning(f"Failed to delete wordpress_sites record: {e}")
+        
         # Remove from database
         delete('sites', 'id=%s', (site_id,))
         
@@ -1403,7 +1776,43 @@ def delete_domain(domain_id):
         delete('mail_users', 'domain_id=%s', (domain_id,))
         
         # Step 3: Delete all databases for this domain
-        delete('databases', 'domain_id=%s', (domain_id,))
+        # First attempt to drop physical databases and users, then remove panel records.
+        try:
+            db_rows = fetch_all("SELECT id, name FROM databases WHERE domain_id=%s", (domain_id,)) or []
+            for db in db_rows:
+                db_id = db.get('id')
+                db_name = db.get('name')
+
+                # Drop the physical database (once)
+                try:
+                    if db_name:
+                        if drop_mysql_database_and_user(db_name=db_name, db_user=None, database_id=db_id):
+                            logger.info(f"Dropped physical DB: {db_name}")
+                        else:
+                            logger.warning(f"Failed to drop physical DB: {db_name}")
+                except Exception as e:
+                    logger.error(f"Exception dropping DB {db_name}: {e}")
+
+                # For each associated user, attempt to drop if safe
+                try:
+                    users = fetch_all("SELECT id, username FROM database_users WHERE database_id=%s", (db_id,)) or []
+                    for u in users:
+                        uname = u.get('username')
+                        try:
+                            drop_mysql_database_and_user(db_name=None, db_user=uname, database_id=db_id)
+                        except Exception as e:
+                            logger.error(f"Exception dropping DB user {uname} for {db_name}: {e}")
+                except Exception as e:
+                    logger.error(f"Failed to fetch users for database id={db_id}: {e}")
+
+                # Remove panel records for this database
+                try:
+                    delete('database_users', 'database_id=%s', (db_id,))
+                    delete('databases', 'id=%s', (db_id,))
+                except Exception as e:
+                    logger.error(f"Failed to delete panel DB records for {db_name} (id={db_id}): {e}")
+        except Exception as e:
+            logger.error(f"Error while cleaning up databases for domain {domain_id}: {e}")
         
         # Step 4: Delete the domain itself
         delete('domains', 'id=%s', (domain_id,))
@@ -1540,6 +1949,9 @@ def create_site(domain_id):
     
     data = request.json or {}
     site_name = data.get('name', domain['domain'])
+    wp_admin_user = data.get('wp_admin_user')
+    wp_admin_pass = data.get('wp_admin_pass')
+    wp_admin_email = data.get('wp_admin_email', f'admin@{domain["domain"]}')
     
     if not DockerEngine:
         return jsonify({'error': 'Docker engine not available'}), 503
@@ -1558,13 +1970,87 @@ def create_site(domain_id):
         version = domain.get('version') or DEFAULT_VERSIONS.get(runtime, 'node18')  # Normalize empty strings
         boilerplate = data.get('boilerplate', 'blank')  # Get boilerplate selection from request
         
+        # Auto-provision database for WordPress
+        wordpress_db_info = None
+        if boilerplate == 'wordpress' or runtime == 'wordpress':
+            try:
+                # Create slug from domain name
+                domain_slug = slugify(domain['domain'], max_length=12)
+                
+                # Generate database name for WordPress
+                wp_db_name = f"{domain_slug}_wp"
+                wp_db_user = f"{domain_slug}_user"
+                wp_db_password = generate_password(20)
+                
+                # Create the actual MySQL database and user
+                if create_mysql_database_and_user(wp_db_name, wp_db_user, wp_db_password):
+                    # Insert record into databases table
+                    db_id = insert('databases', {
+                        'domain_id': domain_id,
+                        'name': wp_db_name,
+                        'created_by': request.current_user['user_id']
+                    })
+                    
+                    # Insert database user credentials
+                    insert('database_users', {
+                        'database_id': db_id,
+                        'username': wp_db_user,
+                        'password_hash': wp_db_password
+                    })
+                    
+                    wordpress_db_info = {
+                        'database': wp_db_name,
+                        'username': wp_db_user,
+                        'password': wp_db_password,
+                        'host': os.environ.get('WP_DB_HOST') or os.environ.get('WORDPRESS_DB_HOST') or os.environ.get('DB_HOST', 'localhost'),
+                        'db_id': db_id
+                    }
+
+                    # If DB host is localhost, containers can't reach it. Use host.docker.internal
+                    # (compose template adds extra_hosts host-gateway mapping).
+                    if wordpress_db_info['host'] in ('localhost', '127.0.0.1'):
+                        wordpress_db_info['host'] = 'host.docker.internal'
+                    
+                    logger.info(f"Auto-created WordPress database: {wp_db_name}")
+                else:
+                    logger.error("Failed to create WordPress database")
+            except Exception as e:
+                logger.error(f"WordPress database auto-provision failed: {e}")
+        
         # Ensure runtime and version are not None
         if not runtime:
             runtime = 'node'
         if not version:
             version = DEFAULT_VERSIONS.get(runtime, 'node18')
         
-        engine = DockerEngine(domain['domain'], runtime, site_id, version, boilerplate)
+        # Pass WordPress DB credentials to Docker engine if WordPress
+        wp_config = None
+        if wordpress_db_info:
+            wp_config = {
+                'db_name': wordpress_db_info['database'],
+                'db_user': wordpress_db_info['username'],
+                'db_password': wordpress_db_info['password'],
+                'db_host': wordpress_db_info['host'],
+                'admin_user': wp_admin_user or 'admin',
+                'admin_pass': wp_admin_pass or generate_password(16),
+                'admin_email': wp_admin_email,
+                'site_url': f'http://{domain["domain"]}',
+                'site_title': domain['domain'],
+                'table_prefix': f"{domain_slug}_"
+            }
+            
+            # Store WordPress admin credentials
+            insert('wordpress_sites', {
+                'site_id': site_id,
+                'domain_id': domain_id,
+                'admin_username': wp_config['admin_user'],
+                'admin_password': wp_config['admin_pass'],
+                'admin_email': wp_config['admin_email'],
+                'site_url': wp_config['site_url'],
+                'installed': 0
+            })
+        
+        engine = DockerEngine(domain['domain'], runtime, site_id, version, boilerplate, wp_config)
         
         # Store engine in active_deployments for log streaming
         deployment_key = f"{domain_id}_{site_id}"
@@ -1616,7 +2102,7 @@ def create_site(domain_id):
             except Exception as e:
                 logger.warning(f"DNS deployment skipped: {e}")
         
-        return jsonify({
+        response_data = {
             'ok': True,
             'site_id': site_id,
             'site_name': site_name,
@@ -1624,7 +2110,13 @@ def create_site(domain_id):
             'runtime': domain['runtime'],
             'status': 'deploying',
             'message': 'Deployment started (background)'
-        }), 201
+        }
+        
+        # Include WordPress database info if created
+        if wordpress_db_info:
+            response_data['wordpress_database'] = wordpress_db_info
+        
+        return jsonify(response_data), 201
     except Exception as e:
         logger.error(f"Site creation failed: {e}")
         return jsonify({
@@ -1790,21 +2282,30 @@ def add_dns_record(domain_id):
 @app.route('/domains/<int:domain_id>/databases', methods=['GET'])
 @token_required
 def list_databases(domain_id):
-    """List databases for a domain."""
+    """List databases for a domain with credentials."""
     if not RBAC.can_access_domain(request.current_user, domain_id):
         return jsonify({'error': 'Access denied'}), 403
     
-    dbs = fetch_all(
-        "SELECT * FROM `databases` WHERE domain_id=%s ORDER BY created_at DESC",
-        (domain_id,)
-    )
+    dbs = fetch_all("""
+        SELECT 
+            d.id, d.domain_id, d.name, d.created_at,
+            du.username, du.password_hash as password
+        FROM `databases` d
+        LEFT JOIN database_users du ON d.id = du.database_id
+        WHERE d.domain_id=%s 
+        ORDER BY d.created_at DESC
+    """, (domain_id,))
+    
+    # Add database host to each record
+    for db in dbs:
+        db['host'] = os.environ.get('DB_HOST', 'localhost')
     
     return jsonify({'ok': True, 'data': dbs}), 200
 
 @app.route('/domains/<int:domain_id>/databases', methods=['POST'])
 @token_required
 def create_database(domain_id):
-    """Create database for a domain."""
+    """Create database for a domain with auto-generated user and password."""
     if not RBAC.can_access_domain(request.current_user, domain_id):
         return jsonify({'error': 'Access denied'}), 403
     
@@ -1813,21 +2314,48 @@ def create_database(domain_id):
         return jsonify({'error': 'Domain not found'}), 404
     
     data = request.json or {}
-    db_name = data.get('name')
+    db_name_suffix = data.get('name', 'db')  # User can specify a suffix, default 'db'
     
-    if not db_name:
+    if not db_name_suffix:
         return jsonify({'error': 'name required'}), 400
     
+    # Create slug from domain name (max 16 chars for MySQL user limits)
+    domain_slug = slugify(domain['domain'], max_length=12)
+    
+    # Generate database name: domainslug_dbname (max 64 chars for MySQL)
+    db_name = f"{domain_slug}_{slugify(db_name_suffix, max_length=48)}"
+    
+    # Generate database username: domainslug_user (max 32 chars for MySQL)
+    db_user = f"{domain_slug}_user"
+    
+    # Generate secure random password
+    db_password = generate_password(20)
+    
+    # Create the actual MySQL database and user
+    if not create_mysql_database_and_user(db_name, db_user, db_password):
+        return jsonify({'error': 'Failed to create MySQL database/user'}), 500
+    
+    # Insert record into databases table
     db_id = insert('databases', {
         'domain_id': domain_id,
         'name': db_name,
         'created_by': request.current_user['user_id']
     })
     
+    # Insert database user credentials
+    insert('database_users', {
+        'database_id': db_id,
+        'username': db_user,
+        'password_hash': db_password  # Store plain password for now (TODO: encrypt)
+    })
+    
     return jsonify({
         'ok': True,
         'db_id': db_id,
-        'name': db_name
+        'database': db_name,
+        'username': db_user,
+        'password': db_password,
+        'host': os.environ.get('DB_HOST', 'localhost')
     }), 201
 
 # ============== Health Check ==============
@@ -1875,4 +2403,6 @@ if __name__ == '__main__':
         except Exception as e:
             logger.error(f"Failed to configure SSH chroot: {e}")
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    debug = os.environ.get('FLASK_DEBUG', '0').strip().lower() in ('1', 'true', 'yes', 'on')
+    port = int(os.environ.get('PANEL_PORT', '5000'))
+    app.run(host='0.0.0.0', port=port, debug=debug, use_reloader=debug)
